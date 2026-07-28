@@ -27,8 +27,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    // Set session synchronously here instead of relying solely on onAuthStateChange,
+    // whose callback can fire after Login.tsx navigates to "/", causing ProtectedRoute
+    // to see a stale null session and bounce the user straight back to /login.
+    setSession(data.session);
   }
 
   async function signOut() {
