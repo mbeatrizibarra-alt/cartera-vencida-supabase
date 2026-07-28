@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid, LineChart, Line } from "recharts";
 import { Link } from "react-router-dom";
 import { Card } from "../ui/Card";
 import { ClientWithAgg } from "../../types";
@@ -84,6 +84,34 @@ export function SeverityPieChart({
           </Pie>
           <Tooltip />
         </PieChart>
+      </ResponsiveContainer>
+    </Card>
+  );
+}
+
+export function MonthlyRecoveryChart({ data }: { data: { label: string; total: number }[] }) {
+  return (
+    <Card className="p-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3">Recuperación mensual (últimos 12 meses)</h3>
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+          <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 12 }} />
+          <Tooltip
+            formatter={(v: number) => currency(v)}
+            labelFormatter={(label) => `Mes: ${label}`}
+          />
+          <Line
+            type="monotone"
+            dataKey="total"
+            name="Recuperado"
+            stroke="#16A34A"
+            strokeWidth={2.5}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+        </LineChart>
       </ResponsiveContainer>
     </Card>
   );

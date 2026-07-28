@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Wallet, Users, TrendingUp, HandCoins, FileSignature, Gavel, UserX, Loader2 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { KpiCard } from "../components/dashboard/KpiCard";
-import { AgingBarChart, SeverityPieChart, TopDebtorsList } from "../components/dashboard/Charts";
-import { fetchClients } from "../lib/data";
+import { AgingBarChart, SeverityPieChart, TopDebtorsList, MonthlyRecoveryChart } from "../components/dashboard/Charts";
+import { fetchClients, fetchMonthlyRecovery } from "../lib/data";
 import { ClientWithAgg } from "../types";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
@@ -12,10 +12,12 @@ const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", c
 export default function Dashboard() {
   const navigate = useNavigate();
   const [clients, setClients] = useState<ClientWithAgg[] | null>(null);
+  const [monthly, setMonthly] = useState<{ label: string; total: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchClients().then(setClients).catch((e) => setError(e.message));
+    fetchMonthlyRecovery().then(setMonthly).catch(() => setMonthly([]));
   }, []);
 
   if (error) {
@@ -66,6 +68,9 @@ export default function Dashboard() {
         <div className="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
           <AgingBarChart clients={clients} onBucketClick={(min, max) => goToClients({ diasMin: String(min), diasMax: String(max === Infinity ? 99999 : max) })} />
           <SeverityPieChart clients={clients} onSliceClick={(sev) => goToClients({ severidad: sev })} />
+          <div className="md:col-span-2">
+            <MonthlyRecoveryChart data={monthly} />
+          </div>
         </div>
         <TopDebtorsList clients={clients} />
       </div>

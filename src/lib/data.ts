@@ -129,6 +129,7 @@ export async function createActivity(payload: {
   descripcion: string;
   proxima_accion?: string | null;
   proxima_fecha?: string | null;
+  monto?: number | null;
 }) {
   const {
     data: { user },
@@ -140,6 +141,41 @@ export async function createActivity(payload: {
     .single();
   if (error) throw error;
   return data as Activity;
+}
+
+/** Recuperación mensual: suma de "monto" en actividades de tipo "Pago recibido", agrupada por mes, últimos 12 meses. */
+export async function fetchMonthlyRecovery(): Promise<{ label: string; total: number }[]> {
+  const since = new Date();
+  since.setMonth(since.getMonth() - 11);
+  since.setDate(1);
+  since.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("activities")
+    .select("created_at, monto")
+    .eq("tipo", "Pago recibido")
+    .gte("created_at", since.toISOString());
+  if (error) throw error;
+
+  const months: { label: string; total: number; year: number; month: number }[] = [];
+  const cursor = new Date(since);
+  for (let i = 0; i < 12; i++) {
+    months.push({
+      label: cursor.toLocaleDateString("es-EC", { month: "short", year: "2-digit" }),
+      total: 0,
+      year: cursor.getFullYear(),
+      month: cursor.getMonth(),
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  for (const row of data ?? []) {
+    const d = new Date(row.created_at);
+    const bucket = months.find((m) => m.year === d.getFullYear() && m.month === d.getMonth());
+    if (bucket) bucket.total += Number(row.monto ?? 0);
+  }
+
+  return months.map(({ label, total }) => ({ label, total }));
 }
 
 export async function uploadDocument(clientId: string, file: File, activityId?: string) {

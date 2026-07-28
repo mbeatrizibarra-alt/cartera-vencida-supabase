@@ -50,6 +50,7 @@ export interface Activity {
   descripcion: string;
   proxima_accion: string | null;
   proxima_fecha: string | null;
+  monto: number | null;
   created_at: string;
   autor_nombre?: string;
 }
