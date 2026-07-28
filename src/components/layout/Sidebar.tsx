@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Landmark, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Landmark, ShieldCheck, Trophy } from "lucide-react";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/clients", label: "Cartera de clientes", icon: Landmark },
+  { to: "/team", label: "Desempeño", icon: Trophy },
 ];
 
 export function Sidebar() {

@@ -223,3 +223,70 @@ export async function deleteActivity(id: string) {
 }
 
 export { severidad };
+
+export interface ResponsableStats {
+  id: string;
+  name: string;
+  clientesAsignados: number;
+  clientesPagados: number;
+  facturasRecuperadas: number;
+  montoTotalAsignado: number;
+  montoRecuperado: number;
+  porcentajeRecuperacion: number;
+  diasPromedioResolucion: number | null;
+}
+
+/**
+ * Estadísticas de desempeño por responsable de cobranza:
+ * - % de recuperación = saldo de clientes marcados "Pagado" / saldo total asignado
+ * - Facturas recuperadas = suma de facturas de esos clientes ya pagados
+ * - Días promedio de resolución = promedio (updated_at - created_at) de los clientes pagados,
+ *   como aproximación de cuánto tardó el gestor en cerrar el caso desde que se le asignó.
+ */
+export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
+  const [responsables, clients, invoices] = await Promise.all([
+    fetchResponsables(),
+    supabase.from("clients").select("id, responsable_id, estado, created_at, updated_at").eq("activo", true).then((r) => {
+      if (r.error) throw r.error;
+      return r.data as { id: string; responsable_id: string | null; estado: string; created_at: string; updated_at: string }[];
+    }),
+    supabase.from("invoices").select("client_id, saldo").eq("activo", true).then((r) => {
+      if (r.error) throw r.error;
+      return r.data as { client_id: string; saldo: number }[];
+    }),
+  ]);
+
+  const saldoByClient = new Map<string, number>();
+  const invoiceCountByClient = new Map<string, number>();
+  for (const inv of invoices) {
+    saldoByClient.set(inv.client_id, (saldoByClient.get(inv.client_id) ?? 0) + Number(inv.saldo));
+    invoiceCountByClient.set(inv.client_id, (invoiceCountByClient.get(inv.client_id) ?? 0) + 1);
+  }
+
+  return responsables.map((r) => {
+    const asignados = clients.filter((c) => c.responsable_id === r.id);
+    const pagados = asignados.filter((c) => c.estado === "Pagado");
+
+    const montoTotalAsignado = asignados.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
+    const montoRecuperado = pagados.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
+    const facturasRecuperadas = pagados.reduce((s, c) => s + (invoiceCountByClient.get(c.id) ?? 0), 0);
+
+    const dias = pagados.map((c) => {
+      const ms = new Date(c.updated_at).getTime() - new Date(c.created_at).getTime();
+      return Math.max(0, Math.round(ms / 86400000));
+    });
+    const diasPromedioResolucion = dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length) : null;
+
+    return {
+      id: r.id,
+      name: r.name,
+      clientesAsignados: asignados.length,
+      clientesPagados: pagados.length,
+      facturasRecuperadas,
+      montoTotalAsignado,
+      montoRecuperado,
+      porcentajeRecuperacion: montoTotalAsignado > 0 ? Math.round((montoRecuperado / montoTotalAsignado) * 1000) / 10 : 0,
+      diasPromedioResolucion,
+    };
+  });
+}
