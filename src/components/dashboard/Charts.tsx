@@ -1,0 +1,80 @@
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
+import { Card } from "../ui/Card";
+import { ClientWithAgg } from "../../types";
+
+const PIE_COLORS: Record<string, string> = { "Alto riesgo": "#EA580C", "Crítico": "#DC2626", "Muy crítico": "#7F1D1D" };
+const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
+
+export function AgingBarChart({ clients }: { clients: ClientWithAgg[] }) {
+  const buckets = [
+    { label: "120-180", min: 120, max: 180, total: 0 },
+    { label: "181-365", min: 181, max: 365, total: 0 },
+    { label: "+365", min: 366, max: Infinity, total: 0 },
+  ];
+  clients.forEach((c) => {
+    const b = buckets.find((x) => c.dias_max >= x.min && c.dias_max <= x.max);
+    if (b) b.total += c.saldo_total;
+  });
+  return (
+    <Card className="p-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3">Cartera por antigüedad</h3>
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={buckets}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+          <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 12 }} />
+          <Tooltip formatter={(v: number) => currency(v)} />
+          <Bar dataKey="total" fill="#2563EB" radius={[6, 6, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </Card>
+  );
+}
+
+export function SeverityPieChart({ clients }: { clients: ClientWithAgg[] }) {
+  const counts: Record<string, number> = { "Alto riesgo": 0, "Crítico": 0, "Muy crítico": 0 };
+  clients.forEach((c) => {
+    if (c.dias_max > 365) counts["Muy crítico"]++;
+    else if (c.dias_max > 180) counts["Crítico"]++;
+    else counts["Alto riesgo"]++;
+  });
+  const data = Object.entries(counts).map(([name, value]) => ({ name, value }));
+  return (
+    <Card className="p-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3">Clientes por severidad</h3>
+      <ResponsiveContainer width="100%" height={240}>
+        <PieChart>
+          <Pie data={data} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2} label>
+            {data.map((d) => (
+              <Cell key={d.name} fill={PIE_COLORS[d.name]} />
+            ))}
+          </Pie>
+          <Tooltip />
+        </PieChart>
+      </ResponsiveContainer>
+    </Card>
+  );
+}
+
+export function TopDebtorsList({ clients }: { clients: ClientWithAgg[] }) {
+  const top = [...clients].sort((a, b) => b.saldo_total - a.saldo_total).slice(0, 8);
+  const max = Math.max(...top.map((d) => d.saldo_total), 1);
+  return (
+    <Card className="p-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3">Ranking de mayores deudores</h3>
+      <ul className="space-y-3">
+        {top.map((d, idx) => (
+          <li key={d.id}>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="font-medium text-slate-700 truncate pr-2">{idx + 1}. {d.name}</span>
+              <span className="text-slate-500 shrink-0">{currency(d.saldo_total)}</span>
+            </div>
+            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-corporate-blueLight rounded-full" style={{ width: `${(d.saldo_total / max) * 100}%` }} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
