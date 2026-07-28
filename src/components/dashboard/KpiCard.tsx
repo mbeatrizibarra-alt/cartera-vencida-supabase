@@ -9,16 +9,39 @@ const TONE_CLASSES: Record<string, string> = {
   slate: "bg-slate-100 text-slate-600",
 };
 
-export function KpiCard({ label, value, icon: Icon, tone = "blue" }: { label: string; value: string; icon: LucideIcon; tone?: string }) {
+export function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  tone = "blue",
+  onClick,
+}: {
+  label: string;
+  value: string;
+  icon: LucideIcon;
+  tone?: string;
+  onClick?: () => void;
+}) {
   return (
-    <Card className="p-4 flex items-start justify-between gap-3">
-      <div>
-        <p className="text-xs font-medium text-slate-500">{label}</p>
-        <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
-      </div>
-      <div className={`p-2.5 rounded-lg ${TONE_CLASSES[tone]}`}>
-        <Icon size={20} />
-      </div>
+    <Card
+      className={`p-4 flex items-start justify-between gap-3 ${
+        onClick ? "cursor-pointer hover:border-corporate-blueLight hover:shadow-md transition-all" : ""
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={!onClick}
+        className="flex items-start justify-between gap-3 w-full text-left disabled:cursor-default"
+      >
+        <div>
+          <p className="text-xs font-medium text-slate-500">{label}</p>
+          <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
+        </div>
+        <div className={`p-2.5 rounded-lg ${TONE_CLASSES[tone]}`}>
+          <Icon size={20} />
+        </div>
+      </button>
     </Card>
   );
 }

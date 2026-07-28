@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Wallet, Users, TrendingUp, HandCoins, FileSignature, Gavel, UserX, Loader2 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { KpiCard } from "../components/dashboard/KpiCard";
@@ -9,6 +10,7 @@ import { ClientWithAgg } from "../types";
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [clients, setClients] = useState<ClientWithAgg[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,23 +44,28 @@ export default function Dashboard() {
   const promesas = clients.filter((c) => c.estado === "Promesa de pago").length;
   const legal = clients.filter((c) => ["Proceso legal", "Cobro judicial"].includes(c.estado)).length;
 
+  const goToClients = (params: Record<string, string>) => {
+    const qs = new URLSearchParams(params).toString();
+    navigate(qs ? `/clients?${qs}` : "/clients");
+  };
+
   return (
     <DashboardLayout title="Dashboard ejecutivo">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Saldo pendiente total" value={currency(totalSaldo)} icon={Wallet} tone="red" />
-        <KpiCard label="Clientes morosos" value={String(clients.length)} icon={Users} tone="blue" />
-        <KpiCard label="Muy crítico (+365d)" value={String(criticos)} icon={TrendingUp} tone="red" />
-        <KpiCard label="Alto riesgo (120-180d)" value={String(altoRiesgo)} icon={UserX} tone="orange" />
-        <KpiCard label="Promesas de pago" value={String(promesas)} icon={HandCoins} tone="orange" />
-        <KpiCard label="Convenios de pago" value={String(convenios)} icon={FileSignature} tone="blue" />
-        <KpiCard label="En proceso judicial" value={String(legal)} icon={Gavel} tone="red" />
-        <KpiCard label="Sin gestión todavía" value={String(sinGestion)} icon={UserX} tone="slate" />
+        <KpiCard label="Saldo pendiente total" value={currency(totalSaldo)} icon={Wallet} tone="red" onClick={() => goToClients({})} />
+        <KpiCard label="Clientes morosos" value={String(clients.length)} icon={Users} tone="blue" onClick={() => goToClients({})} />
+        <KpiCard label="Muy crítico (+365d)" value={String(criticos)} icon={TrendingUp} tone="red" onClick={() => goToClients({ severidad: "Muy crítico" })} />
+        <KpiCard label="Alto riesgo (120-180d)" value={String(altoRiesgo)} icon={UserX} tone="orange" onClick={() => goToClients({ severidad: "Alto riesgo" })} />
+        <KpiCard label="Promesas de pago" value={String(promesas)} icon={HandCoins} tone="orange" onClick={() => goToClients({ estado: "Promesa de pago" })} />
+        <KpiCard label="Convenios de pago" value={String(convenios)} icon={FileSignature} tone="blue" onClick={() => goToClients({ estado: "Convenio firmado" })} />
+        <KpiCard label="En proceso judicial" value={String(legal)} icon={Gavel} tone="red" onClick={() => goToClients({ estado: "Proceso legal" })} />
+        <KpiCard label="Sin gestión todavía" value={String(sinGestion)} icon={UserX} tone="slate" onClick={() => goToClients({ estado: "Sin gestión" })} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <AgingBarChart clients={clients} />
-          <SeverityPieChart clients={clients} />
+          <AgingBarChart clients={clients} onBucketClick={(min, max) => goToClients({ diasMin: String(min), diasMax: String(max === Infinity ? 99999 : max) })} />
+          <SeverityPieChart clients={clients} onSliceClick={(sev) => goToClients({ severidad: sev })} />
         </div>
         <TopDebtorsList clients={clients} />
       </div>

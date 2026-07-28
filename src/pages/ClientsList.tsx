@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Search, Plus, Loader2 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { Card } from "../components/ui/Card";
@@ -12,12 +12,13 @@ const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", c
 type SortKey = "fecha_min" | "saldo_total" | "dias_max" | "name";
 
 export default function ClientsList() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [clients, setClients] = useState<ClientWithAgg[] | null>(null);
   const [responsables, setResponsables] = useState<Responsable[]>([]);
-  const [search, setSearch] = useState("");
-  const [estadoFilter, setEstadoFilter] = useState("");
-  const [sevFilter, setSevFilter] = useState("");
-  const [respFilter, setRespFilter] = useState("");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
+  const [estadoFilter, setEstadoFilter] = useState(searchParams.get("estado") ?? "");
+  const [sevFilter, setSevFilter] = useState(searchParams.get("severidad") ?? "");
+  const [respFilter, setRespFilter] = useState(searchParams.get("resp") ?? "");
   const [sortKey, setSortKey] = useState<SortKey>("fecha_min");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -33,13 +34,16 @@ export default function ClientsList() {
 
   const rows = useMemo(() => {
     if (!clients) return [];
+    const diasMin = searchParams.get("diasMin") ? Number(searchParams.get("diasMin")) : null;
+    const diasMax = searchParams.get("diasMax") ? Number(searchParams.get("diasMax")) : null;
     let filtered = clients.filter((c) => {
       const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.tax_id.includes(search);
       const matchesEstado = !estadoFilter || c.estado === estadoFilter;
       const matchesSev = !sevFilter || severidad(c.dias_max) === sevFilter;
       const matchesResp =
         !respFilter || (respFilter === "__unassigned__" ? !c.responsable_id : c.responsable_id === respFilter);
-      return matchesSearch && matchesEstado && matchesSev && matchesResp;
+      const matchesDias = (diasMin === null || c.dias_max >= diasMin) && (diasMax === null || c.dias_max <= diasMax);
+      return matchesSearch && matchesEstado && matchesSev && matchesResp && matchesDias;
     });
     filtered = [...filtered].sort((a, b) => {
       let av: string | number = "";
@@ -53,7 +57,7 @@ export default function ClientsList() {
       return 0;
     });
     return filtered;
-  }, [clients, search, estadoFilter, sevFilter, respFilter, sortKey, sortDir]);
+  }, [clients, search, estadoFilter, sevFilter, respFilter, sortKey, sortDir, searchParams]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
