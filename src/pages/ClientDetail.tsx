@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { Phone, Mail, IdCard, Plus, Download, Loader2 } from "lucide-react";
+import { Phone, Mail, IdCard, Plus, Download, Loader2, Trash2 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { ActivityModal } from "../components/activities/ActivityModal";
-import { fetchClientDetail, updateClient, upsertInvoices, fetchResponsables, getDocumentUrl } from "../lib/data";
+import { fetchClientDetail, updateClient, upsertInvoices, fetchResponsables, getDocumentUrl, deleteDocument, deleteActivity } from "../lib/data";
 import { Client, Invoice, Activity, DocumentRow, Responsable, ESTADOS, ESTADO_TONE, SEVERIDAD_TONE, severidad } from "../types";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
@@ -158,11 +158,23 @@ export default function ClientDetail() {
             {activities.map((a) => (
               <li key={a.id} className="ml-4">
                 <span className="absolute -left-[9px] w-4 h-4 rounded-full bg-corporate-blueLight border-2 border-white" />
-                <p className="text-xs text-slate-400">{new Date(a.created_at).toLocaleString("es-EC")} {a.autor_nombre ? `· ${a.autor_nombre}` : ""}</p>
-                <p className="text-sm font-medium text-slate-800 mt-0.5"><strong>{a.tipo}:</strong> {a.descripcion}</p>
-                {a.proxima_accion && <p className="text-xs text-slate-500 mt-1">Próxima acción: {a.proxima_accion}{a.proxima_fecha ? ` (${new Date(a.proxima_fecha).toLocaleDateString("es-EC")})` : ""}</p>}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs text-slate-400">{new Date(a.created_at).toLocaleString("es-EC")} {a.autor_nombre ? `· ${a.autor_nombre}` : ""}</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5"><strong>{a.tipo}:</strong> {a.descripcion}</p>
+                    {a.monto != null && <p className="text-sm text-status-green font-semibold mt-0.5">{currency(a.monto)}</p>}
+                    {a.proxima_accion && <p className="text-xs text-slate-500 mt-1">Próxima acción: {a.proxima_accion}{a.proxima_fecha ? ` (${new Date(a.proxima_fecha).toLocaleDateString("es-EC")})` : ""}</p>}
+                  </div>
+                  <button
+                    onClick={() => handleDeleteActivity(a.id)}
+                    className="text-slate-300 hover:text-status-red shrink-0"
+                    title="Eliminar actividad"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
                 {documents.filter((d) => d.activity_id === a.id).map((d) => (
-                  <DocLink key={d.id} doc={d} />
+                  <DocLink key={d.id} doc={d} onDelete={() => handleDeleteDocument(d)} />
                 ))}
               </li>
             ))}
@@ -176,7 +188,15 @@ export default function ClientDetail() {
           {documents.map((d) => (
             <div key={d.id} className="flex items-center justify-between px-4 py-3">
               <p className="text-sm font-medium text-slate-800">{d.file_name}</p>
-              <DocLink doc={d} showLabel />
+              <div className="flex items-center gap-3">
+                <DocLink doc={d} showLabel />
+                <button
+                  onClick={() => handleDeleteDocument(d)}
+                  className="flex items-center gap-1 text-xs text-status-red hover:underline"
+                >
+                  <Trash2 size={12} /> Eliminar
+                </button>
+              </div>
             </div>
           ))}
           {documents.length === 0 && <p className="px-4 py-8 text-center text-slate-400 text-sm">No hay documentos cargados para este cliente.</p>}
@@ -188,17 +208,36 @@ export default function ClientDetail() {
       )}
     </DashboardLayout>
   );
+
+  async function handleDeleteDocument(d: DocumentRow) {
+    if (!confirm(`¿Eliminar el documento "${d.file_name}"? Esta acción no se puede deshacer.`)) return;
+    await deleteDocument(d.id, d.storage_path);
+    reload();
+  }
+
+  async function handleDeleteActivity(activityId: string) {
+    if (!confirm("¿Eliminar esta actividad? Esta acción no se puede deshacer.")) return;
+    await deleteActivity(activityId);
+    reload();
+  }
 }
 
-function DocLink({ doc, showLabel = false }: { doc: DocumentRow; showLabel?: boolean }) {
+function DocLink({ doc, showLabel = false, onDelete }: { doc: DocumentRow; showLabel?: boolean; onDelete?: () => void }) {
   async function open() {
     const url = await getDocumentUrl(doc.storage_path);
     window.open(url, "_blank");
   }
   return (
-    <button onClick={open} className="flex items-center gap-1.5 text-xs text-corporate-blueLight hover:underline mt-1">
-      <Download size={12} /> {showLabel ? "Descargar" : `📎 ${doc.file_name}`}
-    </button>
+    <span className="inline-flex items-center gap-2 mt-1">
+      <button onClick={open} className="flex items-center gap-1.5 text-xs text-corporate-blueLight hover:underline">
+        <Download size={12} /> {showLabel ? "Descargar" : `📎 ${doc.file_name}`}
+      </button>
+      {onDelete && (
+        <button onClick={onDelete} className="text-xs text-status-red hover:underline" title="Eliminar documento">
+          Eliminar
+        </button>
+      )}
+    </span>
   );
 }
 

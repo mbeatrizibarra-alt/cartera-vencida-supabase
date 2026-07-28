@@ -207,4 +207,19 @@ export async function getDocumentUrl(storagePath: string) {
   return data.signedUrl;
 }
 
+/** Elimina un documento: borra el archivo del Storage y su registro en la tabla `documents`. */
+export async function deleteDocument(id: string, storagePath: string) {
+  const { error: storageErr } = await supabase.storage.from("comprobantes").remove([storagePath]);
+  if (storageErr) throw storageErr;
+  const { error } = await supabase.from("documents").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Elimina una actividad registrada por error. Los documentos que quedaron ligados a ella
+ * (activity_id) no se borran, solo pierden la referencia (ON DELETE SET NULL en el esquema). */
+export async function deleteActivity(id: string) {
+  const { error } = await supabase.from("activities").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export { severidad };
