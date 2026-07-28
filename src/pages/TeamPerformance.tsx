@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Trophy } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { Card } from "../components/ui/Card";
 import { fetchResponsableStats, ResponsableStats } from "../lib/data";
@@ -32,24 +32,19 @@ export default function TeamPerformance() {
     );
   }
 
-  const sorted = [...stats].sort((a, b) => b.porcentajeRecuperacion - a.porcentajeRecuperacion);
-
   return (
     <DashboardLayout title="Desempeño por responsable">
       <p className="text-sm text-slate-500 mb-5 max-w-2xl">
-        Mide cómo va cada gestor con la cartera que tiene asignada: qué porcentaje del monto asignado ya
-        recuperó, cuántas facturas cerró y cuánto tiempo le toma en promedio resolver un caso desde que se
-        le asignó hasta que el cliente queda marcado "Pagado".
+        Información de cómo va cada gestor con la cartera que tiene asignada: qué porcentaje del monto
+        asignado ya recuperó, cuántas facturas cerró y cuánto tiempo le toma en promedio resolver un caso
+        desde que se le asignó hasta que el cliente queda marcado "Pagado".
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {sorted.map((r, idx) => (
+        {stats.map((r) => (
           <Card key={r.id} className="p-5">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                {idx === 0 && r.porcentajeRecuperacion > 0 && <Trophy size={18} className="text-status-orange" />}
-                <h3 className="font-semibold text-slate-800">{r.name}</h3>
-              </div>
+              <h3 className="font-semibold text-slate-800">{r.name}</h3>
               <span className="text-2xl font-bold text-corporate-blue">{r.porcentajeRecuperacion}%</span>
             </div>
 
@@ -88,7 +83,7 @@ export default function TeamPerformance() {
             </div>
           </Card>
         ))}
-        {sorted.length === 0 && <p className="text-slate-400 text-sm">No hay responsables registrados todavía.</p>}
+        {stats.length === 0 && <p className="text-slate-400 text-sm">No hay responsables registrados todavía.</p>}
       </div>
     </DashboardLayout>
   );
