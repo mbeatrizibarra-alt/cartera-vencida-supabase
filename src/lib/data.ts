@@ -60,10 +60,24 @@ export async function fetchClientDetail(id: string) {
 
   const { data: activities, error: actErr } = await supabase
     .from("activities")
-    .select("*, profiles(name)")
+    .select("*")
     .eq("client_id", id)
     .order("created_at", { ascending: false });
   if (actErr) throw actErr;
+
+  // activities.user_id references auth.users, not profiles, directly — there is no
+  // FK PostgREST can use to embed profiles(name) automatically. We fetch the relevant
+  // profiles separately (by id) and merge the author name in JS instead.
+  const userIds = Array.from(new Set((activities ?? []).map((a) => a.user_id).filter(Boolean)));
+  let profilesById = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: profiles, error: profErr } = await supabase
+      .from("profiles")
+      .select("id, name")
+      .in("id", userIds as string[]);
+    if (profErr) throw profErr;
+    profilesById = new Map((profiles ?? []).map((p) => [p.id, p.name]));
+  }
 
   const { data: documents, error: docErr } = await supabase
     .from("documents")
@@ -75,9 +89,9 @@ export async function fetchClientDetail(id: string) {
   return {
     client: client as Client & { responsables: { name: string } | null },
     invoices: invoices as Invoice[],
-    activities: (activities as (Activity & { profiles: { name: string } | null })[]).map((a) => ({
+    activities: (activities as Activity[]).map((a) => ({
       ...a,
-      autor_nombre: a.profiles?.name ?? undefined,
+      autor_nombre: a.user_id ? profilesById.get(a.user_id) : undefined,
     })),
     documents: documents as DocumentRow[],
   };
