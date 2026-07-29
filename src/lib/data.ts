@@ -227,6 +227,180 @@ export async function deleteActivity(id: string) {
 
 export { severidad };
 
+export interface ExcelImportResult {
+  filasLeidas: number;
+  clientesCreados: number;
+  clientesActualizados: number;
+  facturasCreadas: number;
+  facturasActualizadas: number;
+  errores: { fila: number; error: string }[];
+}
+
+const HEADER_ALIASES: Record<string, string[]> = {
+  cliente: ["cliente"],
+  taxId: ["ruc/cédula", "ruc/cedula", "ruc", "cédula", "cedula", "ruc / cédula", "ruc / cedula"],
+  numero: ["número de factura", "numero de factura", "n° factura", "factura", "no. factura"],
+  fechaFactura: ["fecha factura", "fecha de la factura", "fecha emisión", "fecha emision"],
+  diasMora: ["días de mora", "dias de mora"],
+  montoOriginal: ["monto original"],
+  saldoPendiente: ["saldo pendiente", "saldo"],
+  responsable: ["responsable comercial", "responsable"],
+  correo: ["correo", "email"],
+  telefono: ["teléfono", "telefono", "celular"],
+  observaciones: ["observaciones", "observación", "observacion"],
+  condicion: ["condiciones de pago", "condicion de pago", "condición de pago"],
+};
+
+function getField(row: Record<string, unknown>, key: keyof typeof HEADER_ALIASES): unknown {
+  const rowKeys = Object.keys(row);
+  for (const alias of HEADER_ALIASES[key]) {
+    const found = rowKeys.find((rk) => rk.trim().toLowerCase() === alias);
+    if (found && row[found] !== undefined && row[found] !== null && row[found] !== "") return row[found];
+  }
+  return null;
+}
+
+function excelDateToIso(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "number") {
+    // fecha serial de Excel
+    const d = new Date(Math.round((value - 25569) * 86400 * 1000));
+    return d.toISOString().slice(0, 10);
+  }
+  const parsed = new Date(String(value));
+  return isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+/**
+ * Carga/actualiza la cartera desde un archivo Excel, directamente desde el navegador
+ * (no hay backend intermedio: se parsea el archivo con SheetJS y se escribe en Supabase).
+ * El cliente se identifica por RUC/Cédula; si ya existe se actualiza, si no existe se crea.
+ * La factura se identifica por (cliente, número de factura); si ya existe se actualiza el
+ * saldo/días de mora, si no existe se crea.
+ *
+ * mode "reemplazar": antes de cargar, desactiva (soft delete) toda la cartera actual —
+ * se conserva en la base de datos pero deja de mostrarse, y el archivo cargado pasa a ser
+ * la cartera vigente.
+ */
+export async function importExcel(file: File, mode: "actualizar" | "reemplazar"): Promise<ExcelImportResult> {
+  const XLSX = await import("xlsx");
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) throw new Error("El archivo no contiene hojas.");
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
+
+  if (mode === "reemplazar") {
+    await supabase.from("invoices").update({ activo: false }).neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("clients").update({ activo: false }).neq("id", "00000000-0000-0000-0000-000000000000");
+  }
+
+  const { data: existingClients, error: ecErr } = await supabase.from("clients").select("id, tax_id");
+  if (ecErr) throw ecErr;
+  const clientIdByTaxId = new Map((existingClients ?? []).map((c) => [String(c.tax_id).trim(), c.id as string]));
+
+  const { data: existingInvoices, error: eiErr } = await supabase.from("invoices").select("id, client_id, numero");
+  if (eiErr) throw eiErr;
+  const invoiceIdByKey = new Map((existingInvoices ?? []).map((i) => [`${i.client_id}::${i.numero}`, i.id as string]));
+
+  const result: ExcelImportResult = {
+    filasLeidas: 0,
+    clientesCreados: 0,
+    clientesActualizados: 0,
+    facturasCreadas: 0,
+    facturasActualizadas: 0,
+    errores: [],
+  };
+
+  for (let idx = 0; idx < rows.length; idx++) {
+    const row = rows[idx];
+    const clienteRaw = getField(row, "cliente");
+    const taxIdRaw = getField(row, "taxId");
+    if (!clienteRaw || !taxIdRaw) continue; // fila vacía o irrelevante
+    result.filasLeidas++;
+
+    try {
+      const taxId = String(taxIdRaw).trim();
+      const name = String(clienteRaw).trim();
+      const correo = getField(row, "correo");
+      const telefono = getField(row, "telefono");
+      const observaciones = getField(row, "observaciones");
+
+      let clientId = clientIdByTaxId.get(taxId);
+      if (!clientId) {
+        const { data: created, error } = await supabase
+          .from("clients")
+          .insert({
+            name,
+            tax_id: taxId,
+            email: correo ? String(correo) : null,
+            phone: telefono ? String(telefono) : null,
+            observaciones: observaciones ? String(observaciones) : "",
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        clientId = created.id as string;
+        clientIdByTaxId.set(taxId, clientId);
+        result.clientesCreados++;
+      } else {
+        const { error } = await supabase
+          .from("clients")
+          .update({
+            name,
+            activo: true,
+            ...(correo ? { email: String(correo) } : {}),
+            ...(telefono ? { phone: String(telefono) } : {}),
+            ...(observaciones ? { observaciones: String(observaciones) } : {}),
+          })
+          .eq("id", clientId);
+        if (error) throw error;
+        result.clientesActualizados++;
+      }
+
+      const numero = String(getField(row, "numero") ?? `SIN-NUM-${idx + 2}`);
+      const fecha = excelDateToIso(getField(row, "fechaFactura"));
+      const saldo = Number(getField(row, "saldoPendiente") ?? getField(row, "montoOriginal") ?? 0);
+      const diasMoraField = getField(row, "diasMora");
+      const diasMora =
+        diasMoraField !== null
+          ? Number(diasMoraField)
+          : fecha
+          ? Math.max(0, Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000))
+          : 0;
+      const condicion = getField(row, "condicion");
+
+      const key = `${clientId}::${numero}`;
+      const existingInvoiceId = invoiceIdByKey.get(key);
+      if (existingInvoiceId) {
+        const { error } = await supabase
+          .from("invoices")
+          .update({ saldo, dias_mora: diasMora, fecha, activo: true, ...(condicion ? { condicion: String(condicion) } : {}) })
+          .eq("id", existingInvoiceId);
+        if (error) throw error;
+        result.facturasActualizadas++;
+      } else {
+        const { error } = await supabase.from("invoices").insert({
+          client_id: clientId,
+          numero,
+          fecha,
+          saldo,
+          dias_mora: diasMora,
+          condicion: condicion ? String(condicion) : "",
+        });
+        if (error) throw error;
+        invoiceIdByKey.set(key, "created-this-import");
+        result.facturasCreadas++;
+      }
+    } catch (err) {
+      result.errores.push({ fila: idx + 2, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return result;
+}
+
 export interface ResponsableStats {
   id: string;
   name: string;

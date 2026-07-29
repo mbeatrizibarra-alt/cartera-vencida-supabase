@@ -7,6 +7,7 @@ import ClientsList from "./pages/ClientsList";
 import ClientNew from "./pages/ClientNew";
 import ClientDetail from "./pages/ClientDetail";
 import TeamPerformance from "./pages/TeamPerformance";
+import ExcelImport from "./pages/ExcelImport";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/clients/new" element={<ClientNew />} />
             <Route path="/clients/:id" element={<ClientDetail />} />
             <Route path="/team" element={<TeamPerformance />} />
+            <Route path="/import" element={<ExcelImport />} />
           </Route>
         </Routes>
       </AuthProvider>
