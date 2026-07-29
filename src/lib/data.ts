@@ -134,11 +134,14 @@ export async function createActivity(payload: {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const { data, error } = await supabase
-    .from("activities")
-    .insert({ ...payload, user_id: user?.id ?? null })
-    .select()
-    .single();
+  // Solo se incluye "monto" en el insert cuando realmente tiene un valor, para que la
+  // app siga funcionando aunque la columna "monto" todavía no exista en la base de datos
+  // (evita romper el registro de actividades que no son de tipo "Pago recibido").
+  const { monto, ...rest } = payload;
+  const insertPayload: Record<string, unknown> = { ...rest, user_id: user?.id ?? null };
+  if (monto !== undefined && monto !== null) insertPayload.monto = monto;
+
+  const { data, error } = await supabase.from("activities").insert(insertPayload).select().single();
   if (error) throw error;
   return data as Activity;
 }
