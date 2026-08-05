@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
-import { Phone, Mail, IdCard, Plus, Download, Loader2, Trash2 } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Phone, Mail, IdCard, Plus, Download, Loader2, Trash2, ArrowLeft } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -13,6 +13,7 @@ const TABS = ["General", "Facturas", "Actividades", "Documentos"] as const;
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [client, setClient] = useState<(Client & { responsables: { name: string } | null }) | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -63,6 +64,12 @@ export default function ClientDetail() {
 
   return (
     <DashboardLayout title={client.name}>
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-corporate-blue mb-3"
+      >
+        <ArrowLeft size={16} /> Volver
+      </button>
       <Card className="p-5 mb-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

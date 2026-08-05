@@ -32,6 +32,18 @@ export default function ClientsList() {
     load();
   }, [load]);
 
+  // Refleja los filtros activos en la URL, para que si entras a un cliente y usas
+  // "Volver", regreses exactamente a la misma búsqueda/filtro que tenías aplicado.
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    if (search) params.q = search;
+    if (estadoFilter) params.estado = estadoFilter;
+    if (sevFilter) params.severidad = sevFilter;
+    if (respFilter) params.resp = respFilter;
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, estadoFilter, sevFilter, respFilter]);
+
   const rows = useMemo(() => {
     if (!clients) return [];
     const diasMin = searchParams.get("diasMin") ? Number(searchParams.get("diasMin")) : null;
