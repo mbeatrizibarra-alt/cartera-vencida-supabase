@@ -86,10 +86,12 @@ export default function ExcelImport() {
         {result && (
           <div className="mt-5 p-4 rounded-lg bg-slate-50 text-sm space-y-1">
             <p>Filas leídas: <strong>{result.filasLeidas}</strong></p>
-            <p>Clientes creados: <strong className="text-status-green">{result.clientesCreados}</strong></p>
-            <p>Clientes actualizados: <strong className="text-corporate-blue">{result.clientesActualizados}</strong></p>
-            <p>Facturas creadas: <strong className="text-status-green">{result.facturasCreadas}</strong></p>
-            <p>Facturas actualizadas: <strong className="text-corporate-blue">{result.facturasActualizadas}</strong></p>
+            <p>Clientes nuevos: <strong className="text-status-green">{result.clientesCreados}</strong></p>
+            <p>Clientes modificados: <strong className="text-corporate-blue">{result.clientesActualizados}</strong></p>
+            <p>Clientes sin cambios: <strong className="text-slate-500">{result.clientesSinCambios}</strong></p>
+            <p>Facturas nuevas: <strong className="text-status-green">{result.facturasCreadas}</strong></p>
+            <p>Facturas modificadas: <strong className="text-corporate-blue">{result.facturasActualizadas}</strong></p>
+            <p>Facturas sin cambios: <strong className="text-slate-500">{result.facturasSinCambios}</strong></p>
             <p>Filas con error: <strong className="text-status-red">{result.errores.length}</strong></p>
             {result.errores.length > 0 && (
               <ul className="mt-2 text-xs text-status-red list-disc pl-5 max-h-40 overflow-y-auto">
@@ -98,6 +100,9 @@ export default function ExcelImport() {
                 ))}
               </ul>
             )}
+            <p className="text-xs text-slate-400 pt-2 border-t border-slate-200 mt-2">
+              Las actividades, gestiones y documentos ya guardados de cada cliente no se ven afectados por esta carga.
+            </p>
           </div>
         )}
       </Card>

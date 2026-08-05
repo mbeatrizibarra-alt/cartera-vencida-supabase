@@ -231,8 +231,10 @@ export interface ExcelImportResult {
   filasLeidas: number;
   clientesCreados: number;
   clientesActualizados: number;
+  clientesSinCambios: number;
   facturasCreadas: number;
   facturasActualizadas: number;
+  facturasSinCambios: number;
   errores: { fila: number; error: string }[];
 }
 
@@ -296,20 +298,26 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
     await supabase.from("clients").update({ activo: false }).neq("id", "00000000-0000-0000-0000-000000000000");
   }
 
-  const { data: existingClients, error: ecErr } = await supabase.from("clients").select("id, tax_id");
+  const { data: existingClients, error: ecErr } = await supabase
+    .from("clients")
+    .select("id, tax_id, name, email, phone, observaciones");
   if (ecErr) throw ecErr;
-  const clientIdByTaxId = new Map((existingClients ?? []).map((c) => [String(c.tax_id).trim(), c.id as string]));
+  const clientByTaxId = new Map((existingClients ?? []).map((c) => [String(c.tax_id).trim(), c]));
 
-  const { data: existingInvoices, error: eiErr } = await supabase.from("invoices").select("id, client_id, numero");
+  const { data: existingInvoices, error: eiErr } = await supabase
+    .from("invoices")
+    .select("id, client_id, numero, saldo, dias_mora, fecha, condicion");
   if (eiErr) throw eiErr;
-  const invoiceIdByKey = new Map((existingInvoices ?? []).map((i) => [`${i.client_id}::${i.numero}`, i.id as string]));
+  const invoiceByKey = new Map((existingInvoices ?? []).map((i) => [`${i.client_id}::${i.numero}`, i]));
 
   const result: ExcelImportResult = {
     filasLeidas: 0,
     clientesCreados: 0,
     clientesActualizados: 0,
+    clientesSinCambios: 0,
     facturasCreadas: 0,
     facturasActualizadas: 0,
+    facturasSinCambios: 0,
     errores: [],
   };
 
@@ -327,8 +335,9 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
       const telefono = getField(row, "telefono");
       const observaciones = getField(row, "observaciones");
 
-      let clientId = clientIdByTaxId.get(taxId);
-      if (!clientId) {
+      const existingClient = clientByTaxId.get(taxId);
+      let clientId: string;
+      if (!existingClient) {
         const { data: created, error } = await supabase
           .from("clients")
           .insert({
@@ -338,25 +347,32 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
             phone: telefono ? String(telefono) : null,
             observaciones: observaciones ? String(observaciones) : "",
           })
-          .select("id")
+          .select("id, tax_id, name, email, phone, observaciones")
           .single();
         if (error) throw error;
         clientId = created.id as string;
-        clientIdByTaxId.set(taxId, clientId);
+        clientByTaxId.set(taxId, created);
         result.clientesCreados++;
       } else {
-        const { error } = await supabase
-          .from("clients")
-          .update({
-            name,
-            activo: true,
-            ...(correo ? { email: String(correo) } : {}),
-            ...(telefono ? { phone: String(telefono) } : {}),
-            ...(observaciones ? { observaciones: String(observaciones) } : {}),
-          })
-          .eq("id", clientId);
-        if (error) throw error;
-        result.clientesActualizados++;
+        clientId = existingClient.id;
+        // Solo se escribe si algún valor realmente cambió respecto al Excel anterior.
+        const nuevoEmail = correo ? String(correo) : existingClient.email;
+        const nuevoTelefono = telefono ? String(telefono) : existingClient.phone;
+        const nuevasObs = observaciones ? String(observaciones) : existingClient.observaciones;
+        const cambioNombre = name !== existingClient.name;
+        const cambioEmail = nuevoEmail !== existingClient.email;
+        const cambioTelefono = nuevoTelefono !== existingClient.phone;
+        const cambioObs = nuevasObs !== existingClient.observaciones;
+        if (cambioNombre || cambioEmail || cambioTelefono || cambioObs) {
+          const { error } = await supabase
+            .from("clients")
+            .update({ name, activo: true, email: nuevoEmail, phone: nuevoTelefono, observaciones: nuevasObs })
+            .eq("id", clientId);
+          if (error) throw error;
+          result.clientesActualizados++;
+        } else {
+          result.clientesSinCambios++;
+        }
       }
 
       const numero = String(getField(row, "numero") ?? `SIN-NUM-${idx + 2}`);
@@ -369,29 +385,38 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
           : fecha
           ? Math.max(0, Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000))
           : 0;
-      const condicion = getField(row, "condicion");
+      const condicionRaw = getField(row, "condicion");
+      const condicion = condicionRaw ? String(condicionRaw) : "";
 
       const key = `${clientId}::${numero}`;
-      const existingInvoiceId = invoiceIdByKey.get(key);
-      if (existingInvoiceId) {
-        const { error } = await supabase
-          .from("invoices")
-          .update({ saldo, dias_mora: diasMora, fecha, activo: true, ...(condicion ? { condicion: String(condicion) } : {}) })
-          .eq("id", existingInvoiceId);
-        if (error) throw error;
-        result.facturasActualizadas++;
-      } else {
+      const existingInvoice = invoiceByKey.get(key);
+      if (!existingInvoice) {
         const { error } = await supabase.from("invoices").insert({
           client_id: clientId,
           numero,
           fecha,
           saldo,
           dias_mora: diasMora,
-          condicion: condicion ? String(condicion) : "",
+          condicion,
         });
         if (error) throw error;
-        invoiceIdByKey.set(key, "created-this-import");
+        invoiceByKey.set(key, { id: "created-this-import", client_id: clientId, numero, saldo, dias_mora: diasMora, fecha, condicion });
         result.facturasCreadas++;
+      } else {
+        const cambioSaldo = Number(existingInvoice.saldo) !== saldo;
+        const cambioDias = existingInvoice.dias_mora !== diasMora;
+        const cambioFecha = fecha !== null && existingInvoice.fecha !== fecha;
+        const cambioCondicion = condicion !== "" && existingInvoice.condicion !== condicion;
+        if (cambioSaldo || cambioDias || cambioFecha || cambioCondicion) {
+          const { error } = await supabase
+            .from("invoices")
+            .update({ saldo, dias_mora: diasMora, fecha, activo: true, ...(condicion ? { condicion } : {}) })
+            .eq("id", existingInvoice.id);
+          if (error) throw error;
+          result.facturasActualizadas++;
+        } else {
+          result.facturasSinCambios++;
+        }
       }
     } catch (err) {
       result.errores.push({ fila: idx + 2, error: err instanceof Error ? err.message : String(err) });
