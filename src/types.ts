@@ -75,6 +75,7 @@ export interface Client {
   estado: string;
   responsable_id: string | null;
   activo: boolean;
+  pago_por_gestion: boolean | null;
   created_at: string;
   updated_at: string;
 }

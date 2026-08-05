@@ -61,8 +61,8 @@ export default function TeamPerformance() {
                 <p className="font-semibold text-slate-800">{r.clientesAsignados}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Clientes pagados</p>
-                <p className="font-semibold text-status-green">{r.clientesPagados}</p>
+                <p className="text-xs text-slate-500">Pagados por gestión</p>
+                <p className="font-semibold text-status-green">{r.clientesPagadosPorGestion}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">Facturas recuperadas</p>
@@ -74,8 +74,15 @@ export default function TeamPerformance() {
                   {r.diasPromedioResolucion !== null ? `${r.diasPromedioResolucion} días` : "—"}
                 </p>
               </div>
+              {r.clientesPagadosSinGestion > 0 && (
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-400">
+                    + {r.clientesPagadosSinGestion} cliente{r.clientesPagadosSinGestion === 1 ? "" : "s"} que ya había{r.clientesPagadosSinGestion === 1 ? "" : "n"} pagado antes (no cuenta como gestión)
+                  </p>
+                </div>
+              )}
               <div className="col-span-2 pt-2 border-t border-slate-100">
-                <p className="text-xs text-slate-500">Monto recuperado / asignado</p>
+                <p className="text-xs text-slate-500">Monto recuperado por gestión / asignado</p>
                 <p className="font-semibold text-slate-800">
                   {currency(r.montoRecuperado)} <span className="text-slate-400 font-normal">de {currency(r.montoTotalAsignado)}</span>
                 </p>

@@ -441,7 +441,8 @@ export interface ResponsableStats {
   id: string;
   name: string;
   clientesAsignados: number;
-  clientesPagados: number;
+  clientesPagadosPorGestion: number;
+  clientesPagadosSinGestion: number;
   facturasRecuperadas: number;
   montoTotalAsignado: number;
   montoRecuperado: number;
@@ -450,19 +451,33 @@ export interface ResponsableStats {
 }
 
 /**
- * Estadísticas de desempeño por responsable de cobranza:
- * - % de recuperación = saldo de clientes marcados "Pagado" / saldo total asignado
- * - Facturas recuperadas = suma de facturas de esos clientes ya pagados
- * - Días promedio de resolución = promedio (updated_at - created_at) de los clientes pagados,
+ * Estadísticas de desempeño por responsable de cobranza. Solo cuenta como "recuperado" el
+ * saldo de clientes marcados "Pagado" cuyo motivo fue "gestión de cobranza" (pago_por_gestion
+ * = true) — si el cliente ya había pagado por su cuenta y solo no se había registrado, no se
+ * le atribuye al desempeño del gestor, aunque el cliente sigue apareciendo como pagado en la
+ * cartera.
+ * - Facturas recuperadas = suma de facturas de esos clientes pagados por gestión.
+ * - Días promedio de resolución = promedio (updated_at - created_at) de esos mismos clientes,
  *   como aproximación de cuánto tardó el gestor en cerrar el caso desde que se le asignó.
  */
 export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
   const [responsables, clients, invoices] = await Promise.all([
     fetchResponsables(),
-    supabase.from("clients").select("id, responsable_id, estado, created_at, updated_at").eq("activo", true).then((r) => {
-      if (r.error) throw r.error;
-      return r.data as { id: string; responsable_id: string | null; estado: string; created_at: string; updated_at: string }[];
-    }),
+    supabase
+      .from("clients")
+      .select("id, responsable_id, estado, pago_por_gestion, created_at, updated_at")
+      .eq("activo", true)
+      .then((r) => {
+        if (r.error) throw r.error;
+        return r.data as {
+          id: string;
+          responsable_id: string | null;
+          estado: string;
+          pago_por_gestion: boolean | null;
+          created_at: string;
+          updated_at: string;
+        }[];
+      }),
     supabase.from("invoices").select("client_id, saldo").eq("activo", true).then((r) => {
       if (r.error) throw r.error;
       return r.data as { client_id: string; saldo: number }[];
@@ -479,12 +494,15 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
   return responsables.map((r) => {
     const asignados = clients.filter((c) => c.responsable_id === r.id);
     const pagados = asignados.filter((c) => c.estado === "Pagado");
+    // Antes de marcar el motivo, o si se marcó "true", se cuenta como logro del gestor.
+    const pagadosPorGestion = pagados.filter((c) => c.pago_por_gestion !== false);
+    const pagadosSinGestion = pagados.filter((c) => c.pago_por_gestion === false);
 
     const montoTotalAsignado = asignados.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
-    const montoRecuperado = pagados.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
-    const facturasRecuperadas = pagados.reduce((s, c) => s + (invoiceCountByClient.get(c.id) ?? 0), 0);
+    const montoRecuperado = pagadosPorGestion.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
+    const facturasRecuperadas = pagadosPorGestion.reduce((s, c) => s + (invoiceCountByClient.get(c.id) ?? 0), 0);
 
-    const dias = pagados.map((c) => {
+    const dias = pagadosPorGestion.map((c) => {
       const ms = new Date(c.updated_at).getTime() - new Date(c.created_at).getTime();
       return Math.max(0, Math.round(ms / 86400000));
     });
@@ -494,7 +512,8 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
       id: r.id,
       name: r.name,
       clientesAsignados: asignados.length,
-      clientesPagados: pagados.length,
+      clientesPagadosPorGestion: pagadosPorGestion.length,
+      clientesPagadosSinGestion: pagadosSinGestion.length,
       facturasRecuperadas,
       montoTotalAsignado,
       montoRecuperado,

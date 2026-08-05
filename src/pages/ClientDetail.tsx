@@ -20,6 +20,7 @@ export default function ClientDetail() {
   const [responsables, setResponsables] = useState<Responsable[]>([]);
   const [tab, setTab] = useState<(typeof TABS)[number]>("General");
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showPagoReasonModal, setShowPagoReasonModal] = useState(false);
   const [editInvoices, setEditInvoices] = useState<Partial<Invoice>[]>([]);
 
   const reload = useCallback(async () => {
@@ -73,10 +74,25 @@ export default function ClientDetail() {
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <select value={client.estado} onChange={(e) => handleFieldChange("estado", e.target.value)} className="border border-slate-300 rounded-lg text-sm px-3 py-1.5">
+            <select
+              value={client.estado}
+              onChange={(e) => {
+                if (e.target.value === "Pagado") {
+                  setShowPagoReasonModal(true);
+                } else {
+                  handleFieldChange("estado", e.target.value);
+                }
+              }}
+              className="border border-slate-300 rounded-lg text-sm px-3 py-1.5"
+            >
               {ESTADOS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             <Badge text={client.estado} tone={ESTADO_TONE[client.estado] ?? "gray"} />
+            {client.estado === "Pagado" && (
+              <span className="text-xs text-slate-400">
+                {client.pago_por_gestion === false ? "Pago no gestionado por nosotros" : client.pago_por_gestion === true ? "Logrado por gestión de cobranza" : ""}
+              </span>
+            )}
           </div>
         </div>
 
@@ -206,8 +222,45 @@ export default function ClientDetail() {
       {showActivityModal && (
         <ActivityModal clientId={client.id} onClose={() => setShowActivityModal(false)} onSaved={() => { setShowActivityModal(false); reload(); }} />
       )}
+
+      {showPagoReasonModal && (
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 className="font-semibold text-slate-800 mb-2">¿Por qué se marca como "Pagado"?</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              Esto ayuda a que las estadísticas de desempeño reflejen solo los pagos logrados por gestión de cobranza.
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => handleConfirmPagado(true)}
+                className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-status-green hover:bg-status-greenBg text-sm"
+              >
+                <p className="font-semibold text-slate-800">Se logró por gestión de cobranza</p>
+                <p className="text-xs text-slate-500 mt-0.5">Llamadas, correos, convenio, etc. realizados por el equipo.</p>
+              </button>
+              <button
+                onClick={() => handleConfirmPagado(false)}
+                className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-sm"
+              >
+                <p className="font-semibold text-slate-800">El cliente ya había pagado antes</p>
+                <p className="text-xs text-slate-500 mt-0.5">No se había registrado el pago; no corresponde a una gestión nuestra.</p>
+              </button>
+            </div>
+            <button onClick={() => setShowPagoReasonModal(false)} className="w-full text-center text-sm text-slate-400 mt-4 hover:underline">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
+
+  async function handleConfirmPagado(porGestion: boolean) {
+    if (!id) return;
+    await updateClient(id, { estado: "Pagado", pago_por_gestion: porGestion });
+    setShowPagoReasonModal(false);
+    reload();
+  }
 
   async function handleDeleteDocument(d: DocumentRow) {
     if (!confirm(`¿Eliminar el documento "${d.file_name}"? Esta acción no se puede deshacer.`)) return;
