@@ -377,20 +377,24 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
 
       const numero = String(getField(row, "numero") ?? `SIN-NUM-${idx + 2}`);
       const fecha = excelDateToIso(getField(row, "fechaFactura"));
-      const saldo = Number(getField(row, "saldoPendiente") ?? getField(row, "montoOriginal") ?? 0);
+      const saldoField = getField(row, "saldoPendiente") ?? getField(row, "montoOriginal");
       const diasMoraField = getField(row, "diasMora");
-      const diasMora =
-        diasMoraField !== null
-          ? Number(diasMoraField)
-          : fecha
-          ? Math.max(0, Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000))
-          : 0;
       const condicionRaw = getField(row, "condicion");
       const condicion = condicionRaw ? String(condicionRaw) : "";
 
       const key = `${clientId}::${numero}`;
       const existingInvoice = invoiceByKey.get(key);
+
       if (!existingInvoice) {
+        // Factura nueva: si el Excel no trae saldo/días de mora, se calculan/usan valores
+        // por defecto razonables (no hay un valor previo que preservar).
+        const saldo = saldoField !== null ? Number(saldoField) : 0;
+        const diasMora =
+          diasMoraField !== null
+            ? Number(diasMoraField)
+            : fecha
+            ? Math.max(0, Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000))
+            : 0;
         const { error } = await supabase.from("invoices").insert({
           client_id: clientId,
           numero,
@@ -403,14 +407,21 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
         invoiceByKey.set(key, { id: "created-this-import", client_id: clientId, numero, saldo, dias_mora: diasMora, fecha, condicion });
         result.facturasCreadas++;
       } else {
+        // Factura existente: si el Excel no trae un valor para un campo, se conserva el
+        // valor que ya estaba guardado — nunca se sobreescribe con 0 o vacío por accidente.
+        const saldo = saldoField !== null ? Number(saldoField) : Number(existingInvoice.saldo);
+        const diasMora = diasMoraField !== null ? Number(diasMoraField) : existingInvoice.dias_mora;
+        const nuevaFecha = fecha !== null ? fecha : existingInvoice.fecha;
+        const nuevaCondicion = condicion !== "" ? condicion : existingInvoice.condicion;
+
         const cambioSaldo = Number(existingInvoice.saldo) !== saldo;
         const cambioDias = existingInvoice.dias_mora !== diasMora;
-        const cambioFecha = fecha !== null && existingInvoice.fecha !== fecha;
-        const cambioCondicion = condicion !== "" && existingInvoice.condicion !== condicion;
+        const cambioFecha = existingInvoice.fecha !== nuevaFecha;
+        const cambioCondicion = existingInvoice.condicion !== nuevaCondicion;
         if (cambioSaldo || cambioDias || cambioFecha || cambioCondicion) {
           const { error } = await supabase
             .from("invoices")
-            .update({ saldo, dias_mora: diasMora, fecha, activo: true, ...(condicion ? { condicion } : {}) })
+            .update({ saldo, dias_mora: diasMora, fecha: nuevaFecha, activo: true, condicion: nuevaCondicion })
             .eq("id", existingInvoice.id);
           if (error) throw error;
           result.facturasActualizadas++;
