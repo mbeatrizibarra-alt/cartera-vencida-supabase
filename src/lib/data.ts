@@ -437,6 +437,15 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
   return result;
 }
 
+export interface ResponsableStatsClient {
+  id: string;
+  name: string;
+  saldo: number;
+  facturas: number;
+  diasResolucion: number | null;
+  fechaPagado: string | null;
+}
+
 export interface ResponsableStats {
   id: string;
   name: string;
@@ -448,6 +457,9 @@ export interface ResponsableStats {
   montoRecuperado: number;
   porcentajeRecuperacion: number;
   diasPromedioResolucion: number | null;
+  detalleAsignados: ResponsableStatsClient[];
+  detallePorGestion: ResponsableStatsClient[];
+  detalleSinGestion: ResponsableStatsClient[];
 }
 
 /**
@@ -459,18 +471,21 @@ export interface ResponsableStats {
  * - Facturas recuperadas = suma de facturas de esos clientes pagados por gestión.
  * - Días promedio de resolución = promedio (updated_at - created_at) de esos mismos clientes,
  *   como aproximación de cuánto tardó el gestor en cerrar el caso desde que se le asignó.
+ * Incluye el detalle cliente por cliente de cada categoría, para poder mostrarlo al hacer clic
+ * en cualquier número del resumen (sin tener que volver a consultar la base de datos).
  */
 export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
   const [responsables, clients, invoices] = await Promise.all([
     fetchResponsables(),
     supabase
       .from("clients")
-      .select("id, responsable_id, estado, pago_por_gestion, created_at, updated_at")
+      .select("id, name, responsable_id, estado, pago_por_gestion, created_at, updated_at")
       .eq("activo", true)
       .then((r) => {
         if (r.error) throw r.error;
         return r.data as {
           id: string;
+          name: string;
           responsable_id: string | null;
           estado: string;
           pago_por_gestion: boolean | null;
@@ -490,6 +505,19 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
     saldoByClient.set(inv.client_id, (saldoByClient.get(inv.client_id) ?? 0) + Number(inv.saldo));
     invoiceCountByClient.set(inv.client_id, (invoiceCountByClient.get(inv.client_id) ?? 0) + 1);
   }
+
+  const toDetail = (c: { id: string; name: string; created_at: string; updated_at: string; estado: string }): ResponsableStatsClient => {
+    const diasResolucion =
+      c.estado === "Pagado" ? Math.max(0, Math.round((new Date(c.updated_at).getTime() - new Date(c.created_at).getTime()) / 86400000)) : null;
+    return {
+      id: c.id,
+      name: c.name,
+      saldo: saldoByClient.get(c.id) ?? 0,
+      facturas: invoiceCountByClient.get(c.id) ?? 0,
+      diasResolucion,
+      fechaPagado: c.estado === "Pagado" ? c.updated_at : null,
+    };
+  };
 
   return responsables.map((r) => {
     const asignados = clients.filter((c) => c.responsable_id === r.id);
@@ -519,6 +547,9 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
       montoRecuperado,
       porcentajeRecuperacion: montoTotalAsignado > 0 ? Math.round((montoRecuperado / montoTotalAsignado) * 1000) / 10 : 0,
       diasPromedioResolucion,
+      detalleAsignados: asignados.map(toDetail).sort((a, b) => b.saldo - a.saldo),
+      detallePorGestion: pagadosPorGestion.map(toDetail).sort((a, b) => b.saldo - a.saldo),
+      detalleSinGestion: pagadosSinGestion.map(toDetail).sort((a, b) => b.saldo - a.saldo),
     };
   });
 }
