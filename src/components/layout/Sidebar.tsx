@@ -1,5 +1,7 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Landmark, ShieldCheck, Trophy, FileSpreadsheet } from "lucide-react";
+import { LayoutDashboard, Landmark, Trophy, FileSpreadsheet } from "lucide-react";
+import actuariaLogo from "../../assets/actuaria-logo.png";
+import anklaLogo from "../../assets/ankla-logo.png";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -11,12 +13,13 @@ const navItems = [
 export function Sidebar() {
   return (
     <aside className="w-64 shrink-0 bg-corporate-blue text-white flex flex-col h-screen sticky top-0">
-      <div className="px-6 py-6 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <ShieldCheck size={24} />
-          <span className="font-bold text-lg leading-tight">Actuaria</span>
+      <div className="px-5 py-5 border-b border-white/10">
+        <div className="bg-white rounded-xl p-3.5 flex flex-col items-center gap-3 shadow-sm">
+          <img src={actuariaLogo} alt="Actuaria Consultores S.A." className="h-6 w-auto" />
+          <div className="w-full h-px bg-slate-200" />
+          <img src={anklaLogo} alt="ANKLA Soluciones Corporativas" className="h-14 w-auto" />
         </div>
-        <p className="text-xs text-blue-200 mt-1">Recuperación de Cartera Vencida</p>
+        <p className="text-xs text-blue-200 mt-3 text-center">Recuperación de Cartera Vencida</p>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map(({ to, label, icon: Icon }) => (
