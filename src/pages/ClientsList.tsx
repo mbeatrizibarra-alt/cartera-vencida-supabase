@@ -4,7 +4,7 @@ import { Search, Plus, Loader2, UserPlus } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
-import { fetchClients, fetchResponsables } from "../lib/data";
+import { fetchClients, fetchResponsables, updateClient } from "../lib/data";
 import { ClientWithAgg, Responsable, ESTADOS, ESTADO_TONE, SEVERIDAD_TONE, severidad } from "../types";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
@@ -74,6 +74,13 @@ export default function ClientsList() {
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(key); setSortDir("desc"); }
+  }
+
+  async function handleAssignResponsable(clientId: string, responsableId: string) {
+    // Se actualiza primero en pantalla para que se sienta inmediato, y se confirma con la base de datos.
+    setClients((prev) => prev?.map((c) => (c.id === clientId ? { ...c, responsable_id: responsableId || null } : c)) ?? prev);
+    await updateClient(clientId, { responsable_id: responsableId || null });
+    load();
   }
 
   if (!clients) {
@@ -168,7 +175,18 @@ export default function ClientsList() {
                   <span className={c.dias_max > 365 ? "text-status-maroon font-semibold" : c.dias_max > 180 ? "text-status-red font-semibold" : "text-status-orange font-semibold"}>{c.dias_max}</span>
                 </td>
                 <td className="px-4 py-3"><Badge text={severidad(c.dias_max)} tone={SEVERIDAD_TONE[severidad(c.dias_max)]} /></td>
-                <td className="px-4 py-3 text-slate-600">{c.responsable_nombre ?? "—"}</td>
+                <td className="px-4 py-3">
+                  <select
+                    value={c.responsable_id ?? ""}
+                    onChange={(e) => handleAssignResponsable(c.id, e.target.value)}
+                    className={`border rounded-lg text-sm px-2 py-1.5 ${
+                      c.responsable_id ? "border-slate-200 text-slate-700" : "border-status-orange text-status-orange font-medium bg-status-orangeBg"
+                    }`}
+                  >
+                    <option value="">Sin asignar</option>
+                    {responsables.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </td>
                 <td className="px-4 py-3"><Badge text={c.estado} tone={ESTADO_TONE[c.estado] ?? "gray"} /></td>
                 <td className="px-4 py-3">
                   <Link to={`/clients/${c.id}`} className="text-corporate-blueLight font-medium hover:underline">Ver</Link>
