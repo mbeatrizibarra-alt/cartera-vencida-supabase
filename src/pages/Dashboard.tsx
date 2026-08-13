@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Wallet, Users, TrendingUp, HandCoins, FileSignature, Gavel, UserX, Loader2 } from "lucide-react";
+import { Wallet, Users, TrendingUp, HandCoins, FileSignature, Gavel, UserX, Loader2, ReceiptText } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { KpiCard } from "../components/dashboard/KpiCard";
-import { AgingBarChart, SeverityPieChart, TopDebtorsList, MonthlyRecoveryChart } from "../components/dashboard/Charts";
+import { AgingBarChart, SeverityPieChart, TopDebtorsList, MonthlyRecoveryChart, RecoveryBreakdownCard } from "../components/dashboard/Charts";
 import { fetchClients, fetchMonthlyRecovery } from "../lib/data";
 import { ClientWithAgg } from "../types";
 
@@ -45,6 +45,7 @@ export default function Dashboard() {
   const convenios = clients.filter((c) => ["Convenio firmado", "Convenio enviado"].includes(c.estado)).length;
   const promesas = clients.filter((c) => c.estado === "Promesa de pago").length;
   const legal = clients.filter((c) => ["Proceso legal", "Cobro judicial"].includes(c.estado)).length;
+  const yaHabianPagado = clients.filter((c) => c.estado === "Pagado" && c.pago_por_gestion === false).length;
 
   const goToClients = (params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
@@ -62,6 +63,7 @@ export default function Dashboard() {
         <KpiCard label="Convenios de pago" value={String(convenios)} icon={FileSignature} tone="blue" onClick={() => goToClients({ estado: "Convenio firmado" })} />
         <KpiCard label="En proceso judicial" value={String(legal)} icon={Gavel} tone="red" onClick={() => goToClients({ estado: "Proceso legal" })} />
         <KpiCard label="Sin gestión todavía" value={String(sinGestion)} icon={UserX} tone="slate" onClick={() => goToClients({ estado: "Sin gestión" })} />
+        <KpiCard label="Ya habían pagado antes" value={String(yaHabianPagado)} icon={ReceiptText} tone="slate" onClick={() => goToClients({ estado: "Pagado" })} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -72,7 +74,10 @@ export default function Dashboard() {
             <MonthlyRecoveryChart data={monthly} />
           </div>
         </div>
-        <TopDebtorsList clients={clients} />
+        <div className="space-y-4">
+          <RecoveryBreakdownCard clients={clients} />
+          <TopDebtorsList clients={clients} />
+        </div>
       </div>
     </DashboardLayout>
   );

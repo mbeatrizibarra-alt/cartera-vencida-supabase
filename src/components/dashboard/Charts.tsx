@@ -117,6 +117,45 @@ export function MonthlyRecoveryChart({ data }: { data: { label: string; total: n
   );
 }
 
+export function RecoveryBreakdownCard({ clients }: { clients: ClientWithAgg[] }) {
+  const pagados = clients.filter((c) => c.estado === "Pagado");
+  const porGestion = pagados.filter((c) => c.pago_por_gestion !== false);
+  const sinGestion = pagados.filter((c) => c.pago_por_gestion === false);
+  const montoPorGestion = porGestion.reduce((s, c) => s + c.saldo_total, 0);
+  const montoSinGestion = sinGestion.reduce((s, c) => s + c.saldo_total, 0);
+  const total = montoPorGestion + montoSinGestion;
+  const pctGestion = total > 0 ? (montoPorGestion / total) * 100 : 0;
+
+  return (
+    <Card className="p-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-1">Cartera recuperada — por motivo</h3>
+      <p className="text-xs text-slate-400 mb-3">De todo lo marcado "Pagado", qué parte fue por gestión activa y qué parte el cliente ya había pagado antes.</p>
+
+      <p className="text-2xl font-bold text-slate-800 mb-3">{currency(total)}</p>
+
+      <div className="h-2.5 rounded-full overflow-hidden bg-slate-100 flex mb-4">
+        <div className="h-full bg-status-green" style={{ width: `${pctGestion}%` }} />
+        <div className="h-full bg-slate-400" style={{ width: `${100 - pctGestion}%` }} />
+      </div>
+
+      <div className="space-y-2 text-sm">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-2 text-slate-600">
+            <span className="w-2.5 h-2.5 rounded-full bg-status-green inline-block" /> Gestión de cobranza
+          </span>
+          <span className="font-semibold text-slate-800">{currency(montoPorGestion)} <span className="text-slate-400 font-normal">({porGestion.length})</span></span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-2 text-slate-600">
+            <span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block" /> Cliente ya había pagado
+          </span>
+          <span className="font-semibold text-slate-800">{currency(montoSinGestion)} <span className="text-slate-400 font-normal">({sinGestion.length})</span></span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export function TopDebtorsList({ clients }: { clients: ClientWithAgg[] }) {
   const top = [...clients].sort((a, b) => b.saldo_total - a.saldo_total).slice(0, 8);
   const max = Math.max(...top.map((d) => d.saldo_total), 1);

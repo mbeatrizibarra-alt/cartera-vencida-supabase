@@ -502,11 +502,14 @@ export interface ResponsableStats {
   id: string;
   name: string;
   clientesAsignados: number;
+  clientesPagadosTotal: number;
   clientesPagadosPorGestion: number;
   clientesPagadosSinGestion: number;
   facturasRecuperadas: number;
   montoTotalAsignado: number;
   montoRecuperado: number;
+  montoRecuperadoPorGestion: number;
+  montoRecuperadoSinGestion: number;
   porcentajeRecuperacion: number;
   diasPromedioResolucion: number | null;
   detalleAsignados: ResponsableStatsClient[];
@@ -515,14 +518,16 @@ export interface ResponsableStats {
 }
 
 /**
- * Estadísticas de desempeño por responsable de cobranza. Solo cuenta como "recuperado" el
- * saldo de clientes marcados "Pagado" cuyo motivo fue "gestión de cobranza" (pago_por_gestion
- * = true) — si el cliente ya había pagado por su cuenta y solo no se había registrado, no se
- * le atribuye al desempeño del gestor, aunque el cliente sigue apareciendo como pagado en la
- * cartera.
- * - Facturas recuperadas = suma de facturas de esos clientes pagados por gestión.
- * - Días promedio de resolución = promedio (updated_at - created_at) de esos mismos clientes,
- *   como aproximación de cuánto tardó el gestor en cerrar el caso desde que se le asignó.
+ * Estadísticas de desempeño por responsable de cobranza. Se cuenta como "recuperado" el saldo
+ * de TODO cliente marcado "Pagado" que tenía asignado ese gestor — sin importar si el pago fue
+ * resultado directo de una gestión de cobranza o si el cliente ya había pagado antes y no se
+ * había registrado: en ambos casos el gestor dio seguimiento al caso hasta cerrarlo (el cliente
+ * no había enviado comprobante hasta que se le insistió), así que la cartera quedó efectivamente
+ * resuelta gracias a su trabajo. Se conserva el desglose por motivo (pago_por_gestion) solo como
+ * información adicional, no para excluir nada del cálculo principal.
+ * - Facturas recuperadas = suma de facturas de todos esos clientes cerrados.
+ * - Días promedio de resolución = promedio (updated_at - created_at), como aproximación de
+ *   cuánto tardó el gestor en cerrar el caso desde que se le asignó.
  * Incluye el detalle cliente por cliente de cada categoría, para poder mostrarlo al hacer clic
  * en cualquier número del resumen (sin tener que volver a consultar la base de datos).
  */
@@ -574,15 +579,17 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
   return responsables.map((r) => {
     const asignados = clients.filter((c) => c.responsable_id === r.id);
     const pagados = asignados.filter((c) => c.estado === "Pagado");
-    // Antes de marcar el motivo, o si se marcó "true", se cuenta como logro del gestor.
+    // El desglose por motivo es solo informativo — ambos grupos cuentan igual para el desempeño.
     const pagadosPorGestion = pagados.filter((c) => c.pago_por_gestion !== false);
     const pagadosSinGestion = pagados.filter((c) => c.pago_por_gestion === false);
 
     const montoTotalAsignado = asignados.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
-    const montoRecuperado = pagadosPorGestion.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
-    const facturasRecuperadas = pagadosPorGestion.reduce((s, c) => s + (invoiceCountByClient.get(c.id) ?? 0), 0);
+    const montoRecuperado = pagados.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
+    const montoRecuperadoPorGestion = pagadosPorGestion.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
+    const montoRecuperadoSinGestion = pagadosSinGestion.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
+    const facturasRecuperadas = pagados.reduce((s, c) => s + (invoiceCountByClient.get(c.id) ?? 0), 0);
 
-    const dias = pagadosPorGestion.map((c) => {
+    const dias = pagados.map((c) => {
       const ms = new Date(c.updated_at).getTime() - new Date(c.created_at).getTime();
       return Math.max(0, Math.round(ms / 86400000));
     });
@@ -592,11 +599,14 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
       id: r.id,
       name: r.name,
       clientesAsignados: asignados.length,
+      clientesPagadosTotal: pagados.length,
       clientesPagadosPorGestion: pagadosPorGestion.length,
       clientesPagadosSinGestion: pagadosSinGestion.length,
       facturasRecuperadas,
       montoTotalAsignado,
       montoRecuperado,
+      montoRecuperadoPorGestion,
+      montoRecuperadoSinGestion,
       porcentajeRecuperacion: montoTotalAsignado > 0 ? Math.round((montoRecuperado / montoTotalAsignado) * 1000) / 10 : 0,
       diasPromedioResolucion,
       detalleAsignados: asignados.map(toDetail).sort((a, b) => b.saldo - a.saldo),

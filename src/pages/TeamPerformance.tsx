@@ -43,9 +43,12 @@ export default function TeamPerformance() {
     <DashboardLayout title="Desempeño por responsable">
       <p className="text-sm text-slate-500 mb-5 max-w-2xl">
         Información de cómo va cada gestor con la cartera que tiene asignada: qué porcentaje del monto
-        asignado ya recuperó, cuántas facturas cerró y cuánto tiempo le toma en promedio resolver un caso
-        desde que se le asignó hasta que el cliente queda marcado "Pagado". Haz clic en cualquier número
-        para ver el detalle cliente por cliente.
+        asignado ya cerró, cuántas facturas resolvió y cuánto tiempo le toma en promedio desde que se le
+        asignó el caso hasta que el cliente queda marcado "Pagado". Cuenta todo caso cerrado por el gestor,
+        sin importar si el pago se logró por la gestión directa o si el cliente ya había pagado y no había
+        enviado el comprobante hasta que se le dio seguimiento — en ambos casos la cartera quedó
+        efectivamente resuelta gracias a su trabajo. Haz clic en cualquier número para ver el detalle
+        cliente por cliente.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -78,14 +81,14 @@ export default function TeamPerformance() {
                 <p className="font-semibold text-slate-800 underline decoration-dotted">{r.clientesAsignados}</p>
               </button>
               <button
-                onClick={() => setDetail({ title: `${r.name} — Pagados por gestión`, clients: r.detallePorGestion })}
+                onClick={() => setDetail({ title: `${r.name} — Casos cerrados`, clients: [...r.detallePorGestion, ...r.detalleSinGestion] })}
                 className="text-left hover:bg-slate-50 rounded-lg p-1 -m-1"
               >
-                <p className="text-xs text-slate-500">Pagados por gestión</p>
-                <p className="font-semibold text-status-green underline decoration-dotted">{r.clientesPagadosPorGestion}</p>
+                <p className="text-xs text-slate-500">Casos cerrados (Pagado)</p>
+                <p className="font-semibold text-status-green underline decoration-dotted">{r.clientesPagadosTotal}</p>
               </button>
               <button
-                onClick={() => setDetail({ title: `${r.name} — Facturas recuperadas`, clients: r.detallePorGestion })}
+                onClick={() => setDetail({ title: `${r.name} — Facturas recuperadas`, clients: [...r.detallePorGestion, ...r.detalleSinGestion] })}
                 className="text-left hover:bg-slate-50 rounded-lg p-1 -m-1"
               >
                 <p className="text-xs text-slate-500">Facturas recuperadas</p>
@@ -98,17 +101,24 @@ export default function TeamPerformance() {
                 </p>
               </div>
               {r.clientesPagadosSinGestion > 0 && (
-                <div className="col-span-2">
+                <div className="col-span-2 flex items-center gap-3 text-xs text-slate-400">
                   <button
-                    onClick={() => setDetail({ title: `${r.name} — Ya habían pagado antes (sin gestión)`, clients: r.detalleSinGestion })}
-                    className="text-xs text-slate-400 hover:text-slate-600 hover:underline text-left"
+                    onClick={() => setDetail({ title: `${r.name} — Gestión directa`, clients: r.detallePorGestion })}
+                    className="hover:text-slate-600 hover:underline"
                   >
-                    + {r.clientesPagadosSinGestion} cliente{r.clientesPagadosSinGestion === 1 ? "" : "s"} que ya había{r.clientesPagadosSinGestion === 1 ? "" : "n"} pagado antes (no cuenta como gestión)
+                    {r.clientesPagadosPorGestion} por gestión directa
+                  </button>
+                  <span>·</span>
+                  <button
+                    onClick={() => setDetail({ title: `${r.name} — Ya había pagado antes`, clients: r.detalleSinGestion })}
+                    className="hover:text-slate-600 hover:underline"
+                  >
+                    {r.clientesPagadosSinGestion} ya había{r.clientesPagadosSinGestion === 1 ? "" : "n"} pagado antes
                   </button>
                 </div>
               )}
               <div className="col-span-2 pt-2 border-t border-slate-100">
-                <p className="text-xs text-slate-500">Monto recuperado por gestión / asignado</p>
+                <p className="text-xs text-slate-500">Monto recuperado / asignado</p>
                 <p className="font-semibold text-slate-800">
                   {currency(r.montoRecuperado)} <span className="text-slate-400 font-normal">de {currency(r.montoTotalAsignado)}</span>
                 </p>
