@@ -229,6 +229,7 @@ export { severidad };
 
 export interface ExcelImportResult {
   filasLeidas: number;
+  totalFilasEnArchivo: number;
   clientesCreados: number;
   clientesActualizados: number;
   clientesSinCambios: number;
@@ -236,28 +237,49 @@ export interface ExcelImportResult {
   facturasActualizadas: number;
   facturasSinCambios: number;
   errores: { fila: number; error: string }[];
+  columnasDetectadas: string[];
+}
+
+/** Quita tildes, pasa a minúsculas y deja solo letras/números, para que "RUC/Cédula",
+ * "ruc - cedula" o "Ruc_Cedula" se reconozcan como lo mismo. */
+function normalizeHeader(h: string): string {
+  return h
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 const HEADER_ALIASES: Record<string, string[]> = {
-  cliente: ["cliente"],
-  taxId: ["ruc/cédula", "ruc/cedula", "ruc", "cédula", "cedula", "ruc / cédula", "ruc / cedula"],
-  numero: ["número de factura", "numero de factura", "n° factura", "factura", "no. factura"],
-  fechaFactura: ["fecha factura", "fecha de la factura", "fecha emisión", "fecha emision"],
-  diasMora: ["días de mora", "dias de mora"],
-  montoOriginal: ["monto original"],
-  saldoPendiente: ["saldo pendiente", "saldo"],
-  responsable: ["responsable comercial", "responsable"],
-  correo: ["correo", "email"],
-  telefono: ["teléfono", "telefono", "celular"],
-  observaciones: ["observaciones", "observación", "observacion"],
-  condicion: ["condiciones de pago", "condicion de pago", "condición de pago"],
+  cliente: ["cliente", "nombrecliente", "razonsocial", "nombre", "clientenombre", "empresa"],
+  taxId: [
+    "ruccedula", "ruc", "cedula", "identificacion", "numeroidentificacion", "nit",
+    "cedularuc", "rucci", "documentoidentidad", "id",
+  ],
+  numero: [
+    "numerodefactura", "nfactura", "factura", "nodefactura", "numerofactura",
+    "nrofactura", "documento", "numerodocumento", "comprobante",
+  ],
+  fechaFactura: [
+    "fechafactura", "fechadelafactura", "fechaemision", "fecha", "fechavencimiento",
+    "fechadevencimiento", "fechaemitida",
+  ],
+  diasMora: ["diasdemora", "diasmora", "mora", "diasvencidos", "diasdevencido"],
+  montoOriginal: ["montooriginal", "montofactura", "valorfactura", "montototal", "valor"],
+  saldoPendiente: ["saldopendiente", "saldo", "saldoadeudado", "valorpendiente", "montopendiente"],
+  responsable: ["responsablecomercial", "responsable", "gestor", "vendedor", "asesor"],
+  correo: ["correo", "email", "correoelectronico", "mail"],
+  telefono: ["telefono", "celular", "movil", "contacto", "numerotelefono"],
+  observaciones: ["observaciones", "observacion", "notas", "comentarios"],
+  condicion: ["condicionesdepago", "condiciondepago", "condicionpago", "formadepago", "terminodepago"],
 };
 
-function getField(row: Record<string, unknown>, key: keyof typeof HEADER_ALIASES): unknown {
-  const rowKeys = Object.keys(row);
+function getField(row: Record<string, unknown>, normalizedKeyMap: Map<string, string>, key: keyof typeof HEADER_ALIASES): unknown {
   for (const alias of HEADER_ALIASES[key]) {
-    const found = rowKeys.find((rk) => rk.trim().toLowerCase() === alias);
-    if (found && row[found] !== undefined && row[found] !== null && row[found] !== "") return row[found];
+    const actualHeader = normalizedKeyMap.get(alias);
+    if (actualHeader === undefined) continue;
+    const value = row[actualHeader];
+    if (value !== undefined && value !== null && value !== "") return value;
   }
   return null;
 }
@@ -281,6 +303,9 @@ function excelDateToIso(value: unknown): string | null {
  * La factura se identifica por (cliente, número de factura); si ya existe se actualiza el
  * saldo/días de mora, si no existe se crea.
  *
+ * El reconocimiento de columnas ignora tildes, mayúsculas y símbolos (espacios, guiones,
+ * barras) para tolerar variaciones razonables en los encabezados del Excel.
+ *
  * mode "reemplazar": antes de cargar, desactiva (soft delete) toda la cartera actual —
  * se conserva en la base de datos pero deja de mostrarse, y el archivo cargado pasa a ser
  * la cartera vigente.
@@ -292,6 +317,11 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) throw new Error("El archivo no contiene hojas.");
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
+
+  const columnasDetectadas = rows.length > 0 ? Object.keys(rows[0]) : [];
+  // Mapa: encabezado normalizado -> encabezado real tal como viene en el archivo.
+  const normalizedKeyMap = new Map<string, string>();
+  for (const h of columnasDetectadas) normalizedKeyMap.set(normalizeHeader(h), h);
 
   if (mode === "reemplazar") {
     await supabase.from("invoices").update({ activo: false }).neq("id", "00000000-0000-0000-0000-000000000000");
@@ -312,6 +342,7 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
 
   const result: ExcelImportResult = {
     filasLeidas: 0,
+    totalFilasEnArchivo: rows.length,
     clientesCreados: 0,
     clientesActualizados: 0,
     clientesSinCambios: 0,
@@ -319,21 +350,22 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
     facturasActualizadas: 0,
     facturasSinCambios: 0,
     errores: [],
+    columnasDetectadas,
   };
 
   for (let idx = 0; idx < rows.length; idx++) {
     const row = rows[idx];
-    const clienteRaw = getField(row, "cliente");
-    const taxIdRaw = getField(row, "taxId");
+    const clienteRaw = getField(row, normalizedKeyMap, "cliente");
+    const taxIdRaw = getField(row, normalizedKeyMap, "taxId");
     if (!clienteRaw || !taxIdRaw) continue; // fila vacía o irrelevante
     result.filasLeidas++;
 
     try {
       const taxId = String(taxIdRaw).trim();
       const name = String(clienteRaw).trim();
-      const correo = getField(row, "correo");
-      const telefono = getField(row, "telefono");
-      const observaciones = getField(row, "observaciones");
+      const correo = getField(row, normalizedKeyMap, "correo");
+      const telefono = getField(row, normalizedKeyMap, "telefono");
+      const observaciones = getField(row, normalizedKeyMap, "observaciones");
 
       const existingClient = clientByTaxId.get(taxId);
       let clientId: string;
@@ -375,11 +407,11 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
         }
       }
 
-      const numero = String(getField(row, "numero") ?? `SIN-NUM-${idx + 2}`);
-      const fecha = excelDateToIso(getField(row, "fechaFactura"));
-      const saldoField = getField(row, "saldoPendiente") ?? getField(row, "montoOriginal");
-      const diasMoraField = getField(row, "diasMora");
-      const condicionRaw = getField(row, "condicion");
+      const numero = String(getField(row, normalizedKeyMap, "numero") ?? `SIN-NUM-${idx + 2}`);
+      const fecha = excelDateToIso(getField(row, normalizedKeyMap, "fechaFactura"));
+      const saldoField = getField(row, normalizedKeyMap, "saldoPendiente") ?? getField(row, normalizedKeyMap, "montoOriginal");
+      const diasMoraField = getField(row, normalizedKeyMap, "diasMora");
+      const condicionRaw = getField(row, normalizedKeyMap, "condicion");
       const condicion = condicionRaw ? String(condicionRaw) : "";
 
       const key = `${clientId}::${numero}`;

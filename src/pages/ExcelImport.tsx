@@ -85,7 +85,8 @@ export default function ExcelImport() {
 
         {result && (
           <div className="mt-5 p-4 rounded-lg bg-slate-50 text-sm space-y-1">
-            <p>Filas leídas: <strong>{result.filasLeidas}</strong></p>
+            <p>Filas en el archivo: <strong>{result.totalFilasEnArchivo}</strong></p>
+            <p>Filas reconocidas: <strong>{result.filasLeidas}</strong></p>
             <p>Clientes nuevos: <strong className="text-status-green">{result.clientesCreados}</strong></p>
             <p>Clientes modificados: <strong className="text-corporate-blue">{result.clientesActualizados}</strong></p>
             <p>Clientes sin cambios: <strong className="text-slate-500">{result.clientesSinCambios}</strong></p>
@@ -100,6 +101,28 @@ export default function ExcelImport() {
                 ))}
               </ul>
             )}
+
+            {result.filasLeidas === 0 && result.totalFilasEnArchivo > 0 && (
+              <div className="mt-3 p-3 rounded-lg bg-status-orangeBg border border-status-orange/30">
+                <p className="text-status-orange font-semibold text-sm">
+                  No se reconoció ninguna fila. El archivo tenía {result.totalFilasEnArchivo} fila(s), pero
+                  ninguna tenía columnas de "Cliente" y "RUC/Cédula" que el sistema pudiera identificar.
+                </p>
+                <p className="text-xs text-slate-600 mt-2">Columnas detectadas en tu archivo:</p>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {result.columnasDetectadas.map((col, idx) => (
+                    <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-xs text-slate-700">
+                      {col}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  Revisa que tu archivo tenga una columna con el nombre del cliente y otra con su RUC o
+                  cédula (los nombres pueden variar, pero deben contener esas palabras).
+                </p>
+              </div>
+            )}
+
             <p className="text-xs text-slate-400 pt-2 border-t border-slate-200 mt-2">
               Las actividades, gestiones y documentos ya guardados de cada cliente no se ven afectados por esta carga.
             </p>
