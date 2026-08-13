@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Search, Plus, Loader2 } from "lucide-react";
+import { Search, Plus, Loader2, UserPlus } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -86,8 +86,29 @@ export default function ClientsList() {
     );
   }
 
+  const nuevosCount = clients?.filter((c) => !c.responsable_id).length ?? 0;
+
   return (
     <DashboardLayout title="Cartera de clientes">
+      {nuevosCount > 0 && (
+        <button
+          onClick={() => setRespFilter("__unassigned__")}
+          className={`w-full text-left mb-4 p-3.5 rounded-xl border flex items-center justify-between transition-colors ${
+            respFilter === "__unassigned__"
+              ? "bg-status-orangeBg border-status-orange"
+              : "bg-white border-slate-200 hover:border-status-orange"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <UserPlus size={18} className="text-status-orange" />
+            <span className="text-sm font-semibold text-slate-800">
+              {nuevosCount} cliente{nuevosCount === 1 ? "" : "s"} nuevo{nuevosCount === 1 ? "" : "s"} sin responsable asignado
+            </span>
+          </div>
+          <span className="text-xs text-status-orange font-medium">Ver y asignar →</span>
+        </button>
+      )}
+
       <Card className="p-4 mb-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[220px]">
@@ -106,8 +127,8 @@ export default function ClientsList() {
           </select>
           <select value={respFilter} onChange={(e) => setRespFilter(e.target.value)} className="border border-slate-300 rounded-lg text-sm px-3 py-2">
             <option value="">Todos los responsables</option>
+            <option value="__unassigned__">Nuevos / sin asignar</option>
             {responsables.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            <option value="__unassigned__">Sin asignar</option>
           </select>
           <div className="flex-1" />
           <Link to="/clients/new" className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg bg-corporate-blue text-white hover:bg-corporate-blueLight">

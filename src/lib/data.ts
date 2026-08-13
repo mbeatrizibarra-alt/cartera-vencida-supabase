@@ -252,22 +252,26 @@ function normalizeHeader(h: string): string {
 
 const HEADER_ALIASES: Record<string, string[]> = {
   cliente: ["cliente", "nombrecliente", "razonsocial", "nombre", "clientenombre", "empresa"],
+  tercero: ["tercero"],
   taxId: [
     "ruccedula", "ruc", "cedula", "identificacion", "numeroidentificacion", "nit",
-    "cedularuc", "rucci", "documentoidentidad", "id",
+    "cedularuc", "rucci", "documentoidentidad", "id", "cifnif", "cif", "nif",
   ],
   numero: [
     "numerodefactura", "nfactura", "factura", "nodefactura", "numerofactura",
-    "nrofactura", "documento", "numerodocumento", "comprobante",
+    "nrofactura", "documento", "numerodocumento", "comprobante", "ndocumento",
   ],
   fechaFactura: [
     "fechafactura", "fechadelafactura", "fechaemision", "fecha", "fechavencimiento",
     "fechadevencimiento", "fechaemitida",
   ],
   diasMora: ["diasdemora", "diasmora", "mora", "diasvencidos", "diasdevencido"],
-  montoOriginal: ["montooriginal", "montofactura", "valorfactura", "montototal", "valor"],
-  saldoPendiente: ["saldopendiente", "saldo", "saldoadeudado", "valorpendiente", "montopendiente"],
-  responsable: ["responsablecomercial", "responsable", "gestor", "vendedor", "asesor"],
+  montoOriginal: ["montooriginal", "montofactura", "valorfactura", "montototal", "valor", "importetotal"],
+  saldoPendiente: [
+    "saldopendiente", "saldo", "saldoadeudado", "valorpendiente", "montopendiente",
+    "importependiente", "importevencido",
+  ],
+  responsable: ["responsablecomercial", "responsable", "gestor", "vendedor", "asesor", "usuariocontacto", "usuario"],
   correo: ["correo", "email", "correoelectronico", "mail"],
   telefono: ["telefono", "celular", "movil", "contacto", "numerotelefono"],
   observaciones: ["observaciones", "observacion", "notas", "comentarios"],
@@ -355,8 +359,24 @@ export async function importExcel(file: File, mode: "actualizar" | "reemplazar")
 
   for (let idx = 0; idx < rows.length; idx++) {
     const row = rows[idx];
-    const clienteRaw = getField(row, normalizedKeyMap, "cliente");
-    const taxIdRaw = getField(row, normalizedKeyMap, "taxId");
+    // El campo "Tercero" (usado en algunos formatos de exportación) trae
+    // "NOMBRE - CIF/RUC - NOMBRE_COMPLETO" en un solo texto. Se prioriza sobre la
+    // columna numérica de CIF/NIF porque Excel puede perder ceros a la izquierda
+    // en columnas que interpreta como número (ej. "0993189286001" -> pierde el 0).
+    let clienteRaw: unknown = null;
+    let taxIdRaw: unknown = null;
+    const terceroRaw = getField(row, normalizedKeyMap, "tercero");
+    if (terceroRaw) {
+      const parts = String(terceroRaw).split(" - ").map((p) => p.trim());
+      if (parts.length >= 2 && parts[1]) {
+        const p0 = parts[0] ?? "";
+        const p2 = parts[2] ?? "";
+        clienteRaw = (p2.length > p0.length ? p2 : p0) || p0;
+        taxIdRaw = parts[1];
+      }
+    }
+    if (!clienteRaw) clienteRaw = getField(row, normalizedKeyMap, "cliente");
+    if (!taxIdRaw) taxIdRaw = getField(row, normalizedKeyMap, "taxId");
     if (!clienteRaw || !taxIdRaw) continue; // fila vacía o irrelevante
     result.filasLeidas++;
 
