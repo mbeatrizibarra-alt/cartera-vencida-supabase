@@ -66,17 +66,23 @@ export async function fetchClientDetail(id: string) {
   if (actErr) throw actErr;
 
   // activities.user_id references auth.users, not profiles, directly — there is no
-  // FK PostgREST can use to embed profiles(name) automatically. We fetch the relevant
-  // profiles separately (by id) and merge the author name in JS instead.
+  // FK PostgREST can use to embed profiles(nombre) automatically. We fetch the relevant
+  // profiles separately (by id) and merge the author name in JS instead. This is wrapped
+  // in try/catch so that a schema mismatch in "profiles" (e.g. a renamed/missing column)
+  // never blocks the rest of the client detail from loading — worst case, no author name.
   const userIds = Array.from(new Set((activities ?? []).map((a) => a.user_id).filter(Boolean)));
   let profilesById = new Map<string, string>();
   if (userIds.length > 0) {
-    const { data: profiles, error: profErr } = await supabase
-      .from("profiles")
-      .select("id, name")
-      .in("id", userIds as string[]);
-    if (profErr) throw profErr;
-    profilesById = new Map((profiles ?? []).map((p) => [p.id, p.name]));
+    try {
+      const { data: profiles, error: profErr } = await supabase
+        .from("profiles")
+        .select("id, nombre")
+        .in("id", userIds as string[]);
+      if (profErr) throw profErr;
+      profilesById = new Map((profiles ?? []).map((p) => [p.id, p.nombre]));
+    } catch (e) {
+      console.warn("No se pudo cargar el nombre del autor de las actividades:", e);
+    }
   }
 
   const { data: documents, error: docErr } = await supabase
