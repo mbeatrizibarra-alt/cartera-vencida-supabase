@@ -63,7 +63,7 @@ export default function Dashboard() {
         <KpiCard label="Convenios de pago" value={String(convenios)} icon={FileSignature} tone="blue" onClick={() => goToClients({ estado: "Convenio firmado" })} />
         <KpiCard label="En proceso judicial" value={String(legal)} icon={Gavel} tone="red" onClick={() => goToClients({ estado: "Proceso legal" })} />
         <KpiCard label="Sin gestión todavía" value={String(sinGestion)} icon={UserX} tone="slate" onClick={() => goToClients({ estado: "Sin gestión" })} />
-        <KpiCard label="Ya habían pagado antes" value={String(yaHabianPagado)} icon={ReceiptText} tone="slate" onClick={() => goToClients({ estado: "Pagado" })} />
+        <KpiCard label="Ya habían pagado antes" value={String(yaHabianPagado)} icon={ReceiptText} tone="slate" onClick={() => goToClients({ estado: "Pagado", motivo: "sin_gestion" })} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -75,7 +75,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="space-y-4">
-          <RecoveryBreakdownCard clients={clients} />
+          <RecoveryBreakdownCard clients={clients} onSegmentClick={(motivo) => goToClients({ estado: "Pagado", motivo })} />
           <TopDebtorsList clients={clients} />
         </div>
       </div>

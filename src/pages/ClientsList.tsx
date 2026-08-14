@@ -48,6 +48,7 @@ export default function ClientsList() {
     if (!clients) return [];
     const diasMin = searchParams.get("diasMin") ? Number(searchParams.get("diasMin")) : null;
     const diasMax = searchParams.get("diasMax") ? Number(searchParams.get("diasMax")) : null;
+    const motivo = searchParams.get("motivo"); // "sin_gestion" | "por_gestion" | null
     let filtered = clients.filter((c) => {
       const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.tax_id.includes(search);
       const matchesEstado = !estadoFilter || c.estado === estadoFilter;
@@ -55,7 +56,9 @@ export default function ClientsList() {
       const matchesResp =
         !respFilter || (respFilter === "__unassigned__" ? !c.responsable_id : c.responsable_id === respFilter);
       const matchesDias = (diasMin === null || c.dias_max >= diasMin) && (diasMax === null || c.dias_max <= diasMax);
-      return matchesSearch && matchesEstado && matchesSev && matchesResp && matchesDias;
+      const matchesMotivo =
+        !motivo || (motivo === "sin_gestion" ? c.pago_por_gestion === false : c.pago_por_gestion !== false);
+      return matchesSearch && matchesEstado && matchesSev && matchesResp && matchesDias && matchesMotivo;
     });
     filtered = [...filtered].sort((a, b) => {
       let av: string | number = "";

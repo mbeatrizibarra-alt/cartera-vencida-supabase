@@ -117,7 +117,13 @@ export function MonthlyRecoveryChart({ data }: { data: { label: string; total: n
   );
 }
 
-export function RecoveryBreakdownCard({ clients }: { clients: ClientWithAgg[] }) {
+export function RecoveryBreakdownCard({
+  clients,
+  onSegmentClick,
+}: {
+  clients: ClientWithAgg[];
+  onSegmentClick?: (motivo: "por_gestion" | "sin_gestion") => void;
+}) {
   const pagados = clients.filter((c) => c.estado === "Pagado");
   const porGestion = pagados.filter((c) => c.pago_por_gestion !== false);
   const sinGestion = pagados.filter((c) => c.pago_por_gestion === false);
@@ -139,18 +145,24 @@ export function RecoveryBreakdownCard({ clients }: { clients: ClientWithAgg[] })
       </div>
 
       <div className="space-y-2 text-sm">
-        <div className="flex items-center justify-between">
+        <button
+          onClick={() => onSegmentClick?.("por_gestion")}
+          className={`w-full flex items-center justify-between ${onSegmentClick ? "hover:bg-slate-50 rounded-lg -mx-1 px-1" : ""}`}
+        >
           <span className="flex items-center gap-2 text-slate-600">
             <span className="w-2.5 h-2.5 rounded-full bg-status-green inline-block" /> Gestión de cobranza
           </span>
           <span className="font-semibold text-slate-800">{currency(montoPorGestion)} <span className="text-slate-400 font-normal">({porGestion.length})</span></span>
-        </div>
-        <div className="flex items-center justify-between">
+        </button>
+        <button
+          onClick={() => onSegmentClick?.("sin_gestion")}
+          className={`w-full flex items-center justify-between ${onSegmentClick ? "hover:bg-slate-50 rounded-lg -mx-1 px-1" : ""}`}
+        >
           <span className="flex items-center gap-2 text-slate-600">
             <span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block" /> Cliente ya había pagado
           </span>
           <span className="font-semibold text-slate-800">{currency(montoSinGestion)} <span className="text-slate-400 font-normal">({sinGestion.length})</span></span>
-        </div>
+        </button>
       </div>
     </Card>
   );
