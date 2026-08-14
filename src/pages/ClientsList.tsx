@@ -50,7 +50,8 @@ export default function ClientsList() {
     const diasMax = searchParams.get("diasMax") ? Number(searchParams.get("diasMax")) : null;
     const motivo = searchParams.get("motivo"); // "sin_gestion" | "por_gestion" | null
     let filtered = clients.filter((c) => {
-      const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.tax_id.includes(search);
+      const normalize = (s: string) => s.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const matchesSearch = normalize(c.name).includes(normalize(search)) || c.tax_id.includes(search.trim());
       const matchesEstado = !estadoFilter || c.estado === estadoFilter;
       const matchesSev = !sevFilter || severidad(c.dias_max) === sevFilter;
       const matchesResp =
