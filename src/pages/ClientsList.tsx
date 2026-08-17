@@ -4,6 +4,7 @@ import { Search, Plus, Loader2, UserPlus } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
+import { MultiSelectDropdown } from "../components/ui/MultiSelectDropdown";
 import { fetchClients, fetchResponsables, updateClient } from "../lib/data";
 import { ClientWithAgg, Responsable, ESTADOS, ESTADO_TONE, SEVERIDAD_TONE, severidad } from "../types";
 
@@ -11,14 +12,16 @@ const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", c
 
 type SortKey = "fecha_min" | "saldo_total" | "dias_max" | "name";
 
+const parseList = (v: string | null) => (v ? v.split(",").filter(Boolean) : []);
+
 export default function ClientsList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [clients, setClients] = useState<ClientWithAgg[] | null>(null);
   const [responsables, setResponsables] = useState<Responsable[]>([]);
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
-  const [estadoFilter, setEstadoFilter] = useState(searchParams.get("estado") ?? "");
-  const [sevFilter, setSevFilter] = useState(searchParams.get("severidad") ?? "");
-  const [respFilter, setRespFilter] = useState(searchParams.get("resp") ?? "");
+  const [estadoFilter, setEstadoFilter] = useState<string[]>(parseList(searchParams.get("estado")));
+  const [sevFilter, setSevFilter] = useState<string[]>(parseList(searchParams.get("severidad")));
+  const [respFilter, setRespFilter] = useState<string[]>(parseList(searchParams.get("resp")));
   const [sortKey, setSortKey] = useState<SortKey>("fecha_min");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -37,9 +40,9 @@ export default function ClientsList() {
   useEffect(() => {
     const params: Record<string, string> = {};
     if (search) params.q = search;
-    if (estadoFilter) params.estado = estadoFilter;
-    if (sevFilter) params.severidad = sevFilter;
-    if (respFilter) params.resp = respFilter;
+    if (estadoFilter.length) params.estado = estadoFilter.join(",");
+    if (sevFilter.length) params.severidad = sevFilter.join(",");
+    if (respFilter.length) params.resp = respFilter.join(",");
     setSearchParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, estadoFilter, sevFilter, respFilter]);
@@ -52,10 +55,11 @@ export default function ClientsList() {
     let filtered = clients.filter((c) => {
       const normalize = (s: string) => s.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       const matchesSearch = normalize(c.name).includes(normalize(search)) || c.tax_id.includes(search.trim());
-      const matchesEstado = !estadoFilter || c.estado === estadoFilter;
-      const matchesSev = !sevFilter || severidad(c.dias_max) === sevFilter;
+      const matchesEstado = estadoFilter.length === 0 || estadoFilter.includes(c.estado);
+      const matchesSev = sevFilter.length === 0 || sevFilter.includes(severidad(c.dias_max));
       const matchesResp =
-        !respFilter || (respFilter === "__unassigned__" ? !c.responsable_id : c.responsable_id === respFilter);
+        respFilter.length === 0 ||
+        respFilter.some((rf) => (rf === "__unassigned__" ? !c.responsable_id : c.responsable_id === rf));
       const matchesDias = (diasMin === null || c.dias_max >= diasMin) && (diasMax === null || c.dias_max <= diasMax);
       const matchesMotivo =
         !motivo || (motivo === "sin_gestion" ? c.pago_por_gestion === false : c.pago_por_gestion !== false);
@@ -103,9 +107,9 @@ export default function ClientsList() {
     <DashboardLayout title="Cartera de clientes">
       {nuevosCount > 0 && (
         <button
-          onClick={() => setRespFilter("__unassigned__")}
+          onClick={() => setRespFilter(["__unassigned__"])}
           className={`w-full text-left mb-4 p-3.5 rounded-xl border flex items-center justify-between transition-colors ${
-            respFilter === "__unassigned__"
+            respFilter.length === 1 && respFilter[0] === "__unassigned__"
               ? "bg-status-orangeBg border-status-orange"
               : "bg-white border-slate-200 hover:border-status-orange"
           }`}
@@ -126,21 +130,28 @@ export default function ClientsList() {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por cliente o RUC/cédula..." className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm" />
           </div>
-          <select value={estadoFilter} onChange={(e) => setEstadoFilter(e.target.value)} className="border border-slate-300 rounded-lg text-sm px-3 py-2">
-            <option value="">Todos los estados</option>
-            {ESTADOS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={sevFilter} onChange={(e) => setSevFilter(e.target.value)} className="border border-slate-300 rounded-lg text-sm px-3 py-2">
-            <option value="">Toda severidad</option>
-            <option value="Alto riesgo">Alto riesgo (120-180d)</option>
-            <option value="Crítico">Crítico (181-365d)</option>
-            <option value="Muy crítico">Muy crítico (+365d)</option>
-          </select>
-          <select value={respFilter} onChange={(e) => setRespFilter(e.target.value)} className="border border-slate-300 rounded-lg text-sm px-3 py-2">
-            <option value="">Todos los responsables</option>
-            <option value="__unassigned__">Nuevos / sin asignar</option>
-            {responsables.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
+          <MultiSelectDropdown
+            label="Todos los estados"
+            options={ESTADOS.map((s) => ({ value: s, label: s }))}
+            selected={estadoFilter}
+            onChange={setEstadoFilter}
+          />
+          <MultiSelectDropdown
+            label="Toda severidad"
+            options={[
+              { value: "Alto riesgo", label: "Alto riesgo (120-180d)" },
+              { value: "Crítico", label: "Crítico (181-365d)" },
+              { value: "Muy crítico", label: "Muy crítico (+365d)" },
+            ]}
+            selected={sevFilter}
+            onChange={setSevFilter}
+          />
+          <MultiSelectDropdown
+            label="Todos los responsables"
+            options={[{ value: "__unassigned__", label: "Nuevos / sin asignar" }, ...responsables.map((r) => ({ value: r.id, label: r.name }))]}
+            selected={respFilter}
+            onChange={setRespFilter}
+          />
           <div className="flex-1" />
           <Link to="/clients/new" className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg bg-corporate-blue text-white hover:bg-corporate-blueLight">
             <Plus size={15} /> Nuevo cliente

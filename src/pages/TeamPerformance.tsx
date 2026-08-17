@@ -54,23 +54,43 @@ export default function TeamPerformance() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {stats.map((r) => (
           <Card key={r.id} className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-800">{r.name}</h3>
-              <button
-                onClick={() => setDetail({ title: `${r.name} — Cartera asignada`, clients: r.detalleAsignados })}
-                className="text-2xl font-bold text-corporate-blue hover:underline"
-                title="Ver detalle de la cartera asignada"
-              >
-                {r.porcentajeRecuperacion}%
-              </button>
-            </div>
+            <h3 className="font-semibold text-slate-800 mb-4">{r.name}</h3>
 
-            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden mb-5">
-              <div
-                className="h-full bg-status-green rounded-full transition-all"
-                style={{ width: `${Math.min(100, r.porcentajeRecuperacion)}%` }}
-              />
+            <div className="grid grid-cols-2 gap-4 mb-5">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-slate-500">% recuperación total</p>
+                  <button
+                    onClick={() => setDetail({ title: `${r.name} — Cartera asignada`, clients: r.detalleAsignados })}
+                    className="text-lg font-bold text-corporate-blue hover:underline"
+                    title="Ver detalle de la cartera asignada"
+                  >
+                    {r.porcentajeRecuperacion}%
+                  </button>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-corporate-blue rounded-full transition-all" style={{ width: `${Math.min(100, r.porcentajeRecuperacion)}%` }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-slate-500">% por gestión directa</p>
+                  <button
+                    onClick={() => setDetail({ title: `${r.name} — Pagados por gestión directa`, clients: r.detallePorGestion })}
+                    className="text-lg font-bold text-status-green hover:underline"
+                    title="Ver detalle de lo logrado por gestión directa"
+                  >
+                    {r.porcentajeRecuperacionPorGestion}%
+                  </button>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-status-green rounded-full transition-all" style={{ width: `${Math.min(100, r.porcentajeRecuperacionPorGestion)}%` }} />
+                </div>
+              </div>
             </div>
+            <p className="text-xs text-slate-400 -mt-3 mb-4">
+              El total incluye clientes que ya habían pagado antes; el de gestión directa mide solo lo logrado activamente — útil para comparar el esfuerzo real entre gestores.
+            </p>
 
             <div className="grid grid-cols-2 gap-4 text-sm">
               <button

@@ -517,6 +517,7 @@ export interface ResponsableStats {
   montoRecuperadoPorGestion: number;
   montoRecuperadoSinGestion: number;
   porcentajeRecuperacion: number;
+  porcentajeRecuperacionPorGestion: number;
   diasPromedioResolucion: number | null;
   detalleAsignados: ResponsableStatsClient[];
   detallePorGestion: ResponsableStatsClient[];
@@ -614,6 +615,7 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
       montoRecuperadoPorGestion,
       montoRecuperadoSinGestion,
       porcentajeRecuperacion: montoTotalAsignado > 0 ? Math.round((montoRecuperado / montoTotalAsignado) * 1000) / 10 : 0,
+      porcentajeRecuperacionPorGestion: montoTotalAsignado > 0 ? Math.round((montoRecuperadoPorGestion / montoTotalAsignado) * 1000) / 10 : 0,
       diasPromedioResolucion,
       detalleAsignados: asignados.map(toDetail).sort((a, b) => b.saldo - a.saldo),
       detallePorGestion: pagadosPorGestion.map(toDetail).sort((a, b) => b.saldo - a.saldo),
