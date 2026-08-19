@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { Wallet, Users, TrendingUp, HandCoins, FileSignature, Gavel, UserX, Loader2, ReceiptText } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { KpiCard } from "../components/dashboard/KpiCard";
-import { AgingBarChart, SeverityPieChart, TopDebtorsList, MonthlyRecoveryChart, RecoveryBreakdownCard } from "../components/dashboard/Charts";
+import { AgingBarChart, SeverityPieChart, TopDebtorsList, MonthlyRecoveryChart, RecoveryBreakdownCard, MonthlyRecoveryPoint } from "../components/dashboard/Charts";
 import { PerformanceDetailModal } from "../components/team/PerformanceDetailModal";
-import { fetchClients, fetchMonthlyRecovery, ResponsableStatsClient } from "../lib/data";
+import { MonthDetailModal } from "../components/dashboard/MonthDetailModal";
+import { fetchClients, ResponsableStatsClient } from "../lib/data";
 import { ClientWithAgg } from "../types";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
@@ -23,16 +24,54 @@ function toDetailClients(clients: ClientWithAgg[]): ResponsableStatsClient[] {
     .sort((a, b) => b.saldo - a.saldo);
 }
 
+/**
+ * Recuperación mensual calculada a partir de la MISMA fuente que "Cartera recuperada — por
+ * motivo" (saldo real de facturas de clientes marcados "Pagado", por el mes de updated_at) —
+ * antes este gráfico usaba un campo manual ("monto" en actividades) que casi nadie llenaba,
+ * lo que hacía que los dos totales no coincidieran nunca. Ahora siempre van a sumar lo mismo.
+ */
+function buildMonthlyRecovery(clients: ClientWithAgg[]): { points: MonthlyRecoveryPoint[]; clientsByMonth: Map<string, ClientWithAgg[]> } {
+  const months: MonthlyRecoveryPoint[] = [];
+  const cursor = new Date();
+  cursor.setDate(1);
+  cursor.setHours(0, 0, 0, 0);
+  cursor.setMonth(cursor.getMonth() - 11);
+  for (let i = 0; i < 12; i++) {
+    months.push({
+      label: cursor.toLocaleDateString("es-EC", { month: "short", year: "2-digit" }),
+      total: 0,
+      clientes: 0,
+      year: cursor.getFullYear(),
+      month: cursor.getMonth(),
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  const clientsByMonth = new Map<string, ClientWithAgg[]>();
+  const pagados = clients.filter((c) => c.estado === "Pagado");
+  for (const c of pagados) {
+    const d = new Date(c.updated_at);
+    const bucket = months.find((m) => m.year === d.getFullYear() && m.month === d.getMonth());
+    if (!bucket) continue; // fuera de los últimos 12 meses
+    bucket.total += c.saldo_total;
+    bucket.clientes += 1;
+    const key = `${bucket.year}-${bucket.month}`;
+    if (!clientsByMonth.has(key)) clientsByMonth.set(key, []);
+    clientsByMonth.get(key)!.push(c);
+  }
+
+  return { points: months, clientsByMonth };
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [clients, setClients] = useState<ClientWithAgg[] | null>(null);
-  const [monthly, setMonthly] = useState<{ label: string; total: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ title: string; clients: ResponsableStatsClient[] } | null>(null);
+  const [monthDetail, setMonthDetail] = useState<{ label: string; clients: ClientWithAgg[] } | null>(null);
 
   useEffect(() => {
     fetchClients().then(setClients).catch((e) => setError(e.message));
-    fetchMonthlyRecovery().then(setMonthly).catch(() => setMonthly([]));
   }, []);
 
   if (error) {
@@ -61,6 +100,7 @@ export default function Dashboard() {
   const promesas = clients.filter((c) => c.estado === "Promesa de pago").length;
   const legal = clients.filter((c) => ["Proceso legal", "Cobro judicial"].includes(c.estado)).length;
   const yaHabianPagado = clients.filter((c) => c.estado === "Pagado" && c.pago_por_gestion === false).length;
+  const { points: monthly, clientsByMonth } = buildMonthlyRecovery(clients);
 
   const goToClients = (params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
@@ -97,7 +137,13 @@ export default function Dashboard() {
           <AgingBarChart clients={clients} onBucketClick={(min, max) => goToClients({ diasMin: String(min), diasMax: String(max === Infinity ? 99999 : max) })} />
           <SeverityPieChart clients={clients} onSliceClick={(sev) => goToClients({ severidad: sev })} />
           <div className="md:col-span-2">
-            <MonthlyRecoveryChart data={monthly} />
+            <MonthlyRecoveryChart
+              data={monthly}
+              onMonthClick={(point) => {
+                const key = `${point.year}-${point.month}`;
+                setMonthDetail({ label: point.label, clients: clientsByMonth.get(key) ?? [] });
+              }}
+            />
           </div>
         </div>
         <div className="space-y-4">
@@ -117,6 +163,7 @@ export default function Dashboard() {
       </div>
 
       {detail && <PerformanceDetailModal title={detail.title} clients={detail.clients} onClose={() => setDetail(null)} />}
+      {monthDetail && <MonthDetailModal monthLabel={monthDetail.label} clients={monthDetail.clients} onClose={() => setMonthDetail(null)} />}
     </DashboardLayout>
   );
 }

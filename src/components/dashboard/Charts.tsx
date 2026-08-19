@@ -89,17 +89,47 @@ export function SeverityPieChart({
   );
 }
 
-export function MonthlyRecoveryChart({ data }: { data: { label: string; total: number }[] }) {
+export interface MonthlyRecoveryPoint {
+  label: string;
+  total: number;
+  clientes: number;
+  year: number;
+  month: number;
+}
+
+export function MonthlyRecoveryChart({ data, onMonthClick }: { data: MonthlyRecoveryPoint[]; onMonthClick?: (point: MonthlyRecoveryPoint) => void }) {
+  const renderDot = (props: { cx?: number; cy?: number; payload?: MonthlyRecoveryPoint; index?: number }) => {
+    const { cx, cy, payload, index } = props;
+    if (cx === undefined || cy === undefined || !payload) return <g key={index} />;
+    return (
+      <circle
+        key={index}
+        cx={cx}
+        cy={cy}
+        r={5}
+        fill="#16A34A"
+        stroke="#fff"
+        strokeWidth={1.5}
+        style={{ cursor: onMonthClick ? "pointer" : "default" }}
+        onClick={() => onMonthClick?.(payload)}
+      />
+    );
+  };
+
   return (
     <Card className="p-4">
-      <h3 className="text-sm font-semibold text-slate-700 mb-3">Recuperación mensual (últimos 12 meses)</h3>
+      <h3 className="text-sm font-semibold text-slate-700 mb-1">Recuperación mensual (últimos 12 meses)</h3>
+      <p className="text-xs text-slate-400 mb-3">
+        Monto de facturas de clientes marcados "Pagado", agrupado por el mes en que se cerraron.
+        {onMonthClick && " Haz clic en un punto para ver el desglose por responsable de ese mes."}
+      </p>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
           <XAxis dataKey="label" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} />
           <Tooltip
-            formatter={(v: number) => currency(v)}
+            formatter={(v: number, _name, item) => [`${currency(v)} · ${item.payload.clientes} cliente(s)`, "Recuperado"]}
             labelFormatter={(label) => `Mes: ${label}`}
           />
           <Line
@@ -108,8 +138,9 @@ export function MonthlyRecoveryChart({ data }: { data: { label: string; total: n
             name="Recuperado"
             stroke="#16A34A"
             strokeWidth={2.5}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            dot={renderDot as any}
+            activeDot={{ r: 7 }}
           />
         </LineChart>
       </ResponsiveContainer>
