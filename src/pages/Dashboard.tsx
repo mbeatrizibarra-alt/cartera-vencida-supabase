@@ -111,8 +111,10 @@ export default function Dashboard() {
     <DashboardLayout title="Dashboard ejecutivo">
       {/* La primera tarjeta va en `hero` (bloque navy a doble ancho): es la métrica que
           manda en la pantalla. Una sola por grupo — si son dos, deja de ser jerarquía. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <div className="sm:col-span-2">
+      {/* Rejilla guiada por el ancho real disponible, no por breakpoints fijos:
+          con auto-fit las tarjetas se acomodan igual en 1240px que en 1600px. */}
+      <div className="gap-4 mb-6" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))" }}>
+        <div style={{ gridColumn: "span 2" }}>
           <KpiCard label="Saldo pendiente total" value={currency(totalSaldo)} icon={Wallet} tone="red" hero onClick={() => goToClients({})} />
         </div>
         <KpiCard label="Clientes morosos" value={String(clients.length)} icon={Users} tone="blue" onClick={() => goToClients({})} />
