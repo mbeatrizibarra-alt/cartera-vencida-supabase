@@ -109,8 +109,12 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout title="Dashboard ejecutivo">
+      {/* La primera tarjeta va en `hero` (bloque navy a doble ancho): es la métrica que
+          manda en la pantalla. Una sola por grupo — si son dos, deja de ser jerarquía. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Saldo pendiente total" value={currency(totalSaldo)} icon={Wallet} tone="red" onClick={() => goToClients({})} />
+        <div className="sm:col-span-2">
+          <KpiCard label="Saldo pendiente total" value={currency(totalSaldo)} icon={Wallet} tone="red" hero onClick={() => goToClients({})} />
+        </div>
         <KpiCard label="Clientes morosos" value={String(clients.length)} icon={Users} tone="blue" onClick={() => goToClients({})} />
         <KpiCard label="Muy crítico (+365d)" value={String(criticos)} icon={TrendingUp} tone="red" onClick={() => goToClients({ severidad: "Muy crítico" })} />
         <KpiCard label="Alto riesgo (120-180d)" value={String(altoRiesgo)} icon={UserX} tone="orange" onClick={() => goToClients({ severidad: "Alto riesgo" })} />

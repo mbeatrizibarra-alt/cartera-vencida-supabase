@@ -12,33 +12,52 @@ const navItems = [
 
 export function Sidebar() {
   return (
-    <aside className="w-64 shrink-0 bg-corporate-blue text-white flex flex-col h-screen sticky top-0">
-      <Link to="/" className="block px-5 py-5 border-b border-white/10 hover:opacity-90 transition-opacity">
-        <div className="bg-white rounded-xl p-3.5 flex flex-col items-center gap-3 shadow-sm">
+    <aside
+      className="w-[264px] shrink-0 text-white flex flex-col h-screen sticky top-0 relative overflow-hidden"
+      style={{ background: "linear-gradient(180deg,var(--ac-navy) 0%,var(--ac-navy-900) 100%)" }}
+    >
+      {/* textura de marca: retícula de carta de navegación */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ backgroundImage: "radial-gradient(rgba(255,255,255,.07) 1px,transparent 1.1px)", backgroundSize: "26px 26px" }}
+      />
+      <Link to="/" className="relative block px-5 py-5 hover:opacity-95 transition-opacity" style={{ borderBottom: "1px solid rgba(255,255,255,.10)" }}>
+        <div className="bg-white rounded-2xl p-4 flex flex-col items-center gap-3" style={{ boxShadow: "0 8px 20px rgba(0,0,0,.22)" }}>
           <img src={actuariaLogo} alt="Actuaria Consultores S.A." className="h-6 w-auto" />
-          <div className="w-full h-px bg-slate-200" />
+          <div className="w-full h-px" style={{ background: "var(--line)" }} />
           <img src={anklaLogo} alt="ANKLA Soluciones Corporativas" className="h-14 w-auto" />
         </div>
-        <p className="text-xs text-blue-200 mt-3 text-center">Recuperación de Cartera Vencida</p>
+        <p
+          className="mt-3 text-center"
+          style={{ fontFamily: "var(--font-heading)", fontSize: 10, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--ac-sky)" }}
+        >
+          Recuperación de Cartera Vencida
+        </p>
       </Link>
-      <nav className="flex-1 px-3 py-4 space-y-1">
+
+      <nav className="relative flex-1 px-3 py-4 flex flex-col gap-[3px]">
         {navItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive ? "bg-white/15 text-white" : "text-blue-100 hover:bg-white/10 hover:text-white"
-              }`
-            }
-          >
+          <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `ac-nav-item ${isActive ? "is-active" : ""}`}>
             <Icon size={18} />
             {label}
           </NavLink>
         ))}
       </nav>
-      <div className="px-6 py-4 border-t border-white/10 text-xs text-blue-200">ACTUARIA CONSULTORES S.A.</div>
+
+      <div
+        className="relative px-6 py-4"
+        style={{
+          borderTop: "1px solid rgba(255,255,255,.10)",
+          fontFamily: "var(--font-heading)",
+          fontSize: 10,
+          fontWeight: 600,
+          letterSpacing: ".08em",
+          textTransform: "uppercase",
+          color: "rgba(255,255,255,.34)",
+        }}
+      >
+        Actuaria Consultores S.A.
+      </div>
     </aside>
   );
 }

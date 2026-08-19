@@ -1,47 +1,46 @@
 import { LucideIcon } from "lucide-react";
-import { Card } from "../ui/Card";
 
-const TONE_CLASSES: Record<string, string> = {
-  blue: "bg-blue-50 text-corporate-blue",
-  green: "bg-status-greenBg text-status-green",
-  orange: "bg-status-orangeBg text-status-orange",
-  red: "bg-status-redBg text-status-red",
-  slate: "bg-slate-100 text-slate-600",
-};
-
+/**
+ * KPI neomórfico. `hero` convierte la tarjeta en la métrica principal
+ * (bloque navy) — úsalo en una sola tarjeta por grupo, la más importante.
+ */
 export function KpiCard({
   label,
   value,
   icon: Icon,
   tone = "blue",
+  hero = false,
   onClick,
 }: {
   label: string;
   value: string;
   icon: LucideIcon;
   tone?: string;
+  hero?: boolean;
   onClick?: () => void;
 }) {
+  const TONE_COLOR: Record<string, string> = {
+    blue: "var(--ac-blue)",
+    green: "var(--ac-green)",
+    orange: "var(--ac-amber)",
+    red: "var(--ac-red)",
+    slate: "var(--ink-soft)",
+  };
+
   return (
-    <Card
-      className={`p-4 flex items-start justify-between gap-3 ${
-        onClick ? "cursor-pointer hover:border-corporate-blueLight hover:shadow-md transition-all" : ""
-      }`}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`ac-kpi ${hero ? "ac-kpi-hero" : ""} ${onClick ? "cursor-pointer" : "cursor-default"}`}
     >
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={!onClick}
-        className="flex items-start justify-between gap-3 w-full text-left disabled:cursor-default"
-      >
-        <div>
-          <p className="text-xs font-medium text-slate-500">{label}</p>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
-        </div>
-        <div className={`p-2.5 rounded-lg ${TONE_CLASSES[tone]}`}>
-          <Icon size={20} />
-        </div>
-      </button>
-    </Card>
+      <span className="relative z-10 block">
+        <span className="k-label block">{label}</span>
+        <span className="k-value block">{value}</span>
+      </span>
+      <span className="k-icon relative z-10" style={hero ? undefined : { color: TONE_COLOR[tone] ?? TONE_COLOR.blue }}>
+        <Icon size={19} />
+      </span>
+    </button>
   );
 }

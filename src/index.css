@@ -2,7 +2,140 @@
 @tailwind components;
 @tailwind utilities;
 
-body { @apply bg-corporate-gray text-slate-800 antialiased; font-family: "Inter", system-ui, sans-serif; }
-::-webkit-scrollbar { height: 8px; width: 8px; }
-::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
-:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+/* =========================================================
+   CARTERA VENCIDA — Actuaria Design System
+   Tokens de marca + estilo neomórfico (§34) sobre #E8ECF4.
+   Reemplaza src/index.css. No requiere tocar la lógica.
+   ========================================================= */
+@import url("https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&family=Prompt:wght@300;400;500;600&display=swap");
+
+:root{
+  --ac-navy:#151F47; --ac-navy-900:#0E1530; --ac-navy-700:#1E2D5F;
+  --ac-blue:#3061AA; --ac-blue-600:#27518F;
+  --ac-orange:#DF5E2D; --ac-orange-600:#C44E22;
+  --ac-celeste:#C7CFE0; --ac-sky:#8FB0DD; --ac-salmon:#FFBBA1;
+  --ac-green:#1F9D57; --ac-green-bg:#E7F6EE;
+  --ac-amber:#E8862C; --ac-amber-bg:#FCF0E2;
+  --ac-red:#C73A3A;   --ac-red-bg:#FBEAEA;
+  --ac-maroon:#8E1F1F;--ac-maroon-bg:#F6E4E4;
+  --ac-info:#1A74A8;  --ac-info-bg:#E6F1F8;
+
+  --neu:#E8ECF4; --neu-lo:#DDE3EE;
+  --sh-dark:rgba(163,177,198,.60); --sh-light:rgba(255,255,255,.90);
+  --neu-raised:6px 6px 16px var(--sh-dark), -6px -6px 16px var(--sh-light);
+  --neu-raised-sm:3px 3px 8px var(--sh-dark), -3px -3px 8px var(--sh-light);
+  --neu-inset:inset 6px 6px 16px var(--sh-dark), inset -6px -6px 16px var(--sh-light);
+  --neu-inset-sm:inset 3px 3px 8px var(--sh-dark), inset -3px -3px 8px var(--sh-light);
+
+  --ink:#151F47; --ink-soft:#5A6275; --ink-mute:#9098A8;
+  --line:#DCE2EE; --line-soft:#E4E8F1;
+  --focus:0 0 0 3px rgba(48,97,170,.35);
+  --ease:cubic-bezier(.2,.7,.3,1);
+
+  --font-display:"Jost","Nunito",sans-serif;
+  --font-heading:"Nunito",system-ui,sans-serif;
+  --font-body:"Prompt",system-ui,sans-serif;
+}
+
+body{
+  background:var(--neu);
+  color:var(--ink);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+  text-wrap:pretty;
+}
+button{font-family:var(--font-heading);}
+::-webkit-scrollbar{height:8px;width:8px;}
+::-webkit-scrollbar-thumb{background:#C9D2E2;border-radius:999px;}
+:focus-visible{outline:none;box-shadow:var(--focus);}
+
+@layer components{
+  /* --- superficies --- */
+  .ac-card{background:var(--neu);border-radius:20px;box-shadow:var(--neu-raised);border:none;}
+  .ac-card-sm{box-shadow:var(--neu-raised-sm);border-radius:16px;}
+  .ac-inset{background:var(--neu);border-radius:14px;box-shadow:var(--neu-inset-sm);}
+
+  /* --- tipografía --- */
+  .ac-display{font-family:var(--font-display);font-weight:600;letter-spacing:.03em;color:var(--ac-navy);}
+  .ac-eyebrow{font-family:var(--font-heading);font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ac-blue);}
+  .ac-label{font-family:var(--font-heading);font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);}
+  .ac-num{font-variant-numeric:tabular-nums;}
+
+  /* --- botones --- */
+  .ac-btn{border:none;background:var(--neu);border-radius:12px;padding:10px 16px;font-family:var(--font-heading);font-size:12.5px;font-weight:700;letter-spacing:.03em;color:var(--ink);box-shadow:var(--neu-raised-sm);transition:color .12s var(--ease),box-shadow .12s var(--ease);display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
+  .ac-btn:hover{color:var(--ac-blue);}
+  .ac-btn:active{box-shadow:var(--neu-inset-sm);}
+  .ac-btn-primary{background:var(--ac-navy);color:#fff;box-shadow:0 6px 14px rgba(21,31,71,.26);}
+  .ac-btn-primary:hover{background:var(--ac-navy-700);color:#fff;}
+  .ac-btn-primary:active{box-shadow:inset 0 2px 6px rgba(0,0,0,.35);}
+  .ac-icon-btn{width:38px;height:38px;padding:0;justify-content:center;border-radius:9999px;background:var(--neu);box-shadow:var(--neu-raised-sm);border:none;color:var(--ink-soft);display:inline-flex;align-items:center;}
+  .ac-icon-btn:hover{color:var(--ac-navy);}
+  .ac-icon-btn:active{box-shadow:var(--neu-inset-sm);}
+
+  /* --- campos --- */
+  .ac-field{width:100%;padding:10px 14px;border:none;border-radius:12px;font-size:13.5px;color:var(--ink);background:var(--neu);box-shadow:var(--neu-inset-sm);}
+  .ac-field::placeholder{color:var(--ink-mute);}
+  .ac-field:focus{outline:none;box-shadow:var(--neu-inset-sm),var(--focus);}
+  .ac-pill{border-radius:9999px;}
+
+  /* --- badges (semáforo de marca) --- */
+  .ac-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-heading);font-size:11px;font-weight:700;padding:5px 11px 5px 10px;border-radius:9999px;white-space:nowrap;}
+  .ac-badge::before{content:"";width:6px;height:6px;border-radius:9999px;flex:none;}
+  .ac-badge-green{background:var(--ac-green-bg);color:#14713D;} .ac-badge-green::before{background:var(--ac-green);}
+  .ac-badge-orange{background:var(--ac-amber-bg);color:#9C5A12;} .ac-badge-orange::before{background:var(--ac-amber);}
+  .ac-badge-red{background:var(--ac-red-bg);color:var(--ac-red);} .ac-badge-red::before{background:var(--ac-red);}
+  .ac-badge-maroon{background:var(--ac-maroon-bg);color:var(--ac-maroon);} .ac-badge-maroon::before{background:var(--ac-maroon);}
+  .ac-badge-blue{background:var(--ac-info-bg);color:var(--ac-info);} .ac-badge-blue::before{background:var(--ac-info);}
+  .ac-badge-gray{background:#DFE4EE;color:var(--ink-soft);} .ac-badge-gray::before{background:var(--ink-mute);}
+
+  /* --- KPI --- */
+  .ac-kpi{position:relative;overflow:hidden;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;min-height:104px;background:var(--neu);border-radius:20px;box-shadow:var(--neu-raised);border:none;text-align:left;width:100%;transition:box-shadow .16s var(--ease);}
+  .ac-kpi:hover{box-shadow:var(--neu-raised-sm);}
+  .ac-kpi > span:first-child{flex:1 1 auto;min-width:0;}
+  .ac-kpi .k-label{font-family:var(--font-heading);font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);}
+  .ac-kpi .k-value{font-family:var(--font-display);font-weight:600;font-size:30px;line-height:1.1;margin-top:6px;color:var(--ac-navy);font-variant-numeric:tabular-nums;}
+  .ac-kpi .k-icon svg{width:19px;height:19px;}
+  .ac-kpi .k-icon{width:42px;height:42px;flex:none;border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:var(--neu-inset-sm);color:var(--ac-blue);}
+  .ac-kpi-hero{background:linear-gradient(150deg,var(--ac-navy) 0%,var(--ac-navy-900) 100%);box-shadow:0 10px 26px rgba(21,31,71,.28);}
+  .ac-kpi-hero .k-label{color:var(--ac-celeste);}
+  .ac-kpi-hero .k-value{color:#fff;font-size:34px;}
+  .ac-kpi-hero .k-icon{background:rgba(255,255,255,.10);box-shadow:none;color:var(--ac-salmon);}
+  .ac-kpi-hero::after{content:"";position:absolute;right:-34px;bottom:-34px;width:130px;height:130px;border-radius:9999px;background:radial-gradient(circle at 30% 30%,rgba(143,176,221,.28),transparent 70%);}
+
+  /* --- navegación --- */
+  .ac-nav-item{display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:12px;color:rgba(255,255,255,.70);font-family:var(--font-heading);font-size:13px;font-weight:600;position:relative;transition:background .12s var(--ease),color .12s var(--ease);}
+  .ac-nav-item svg{width:18px;height:18px;flex:none;}
+  .ac-nav-item:hover{background:rgba(255,255,255,.07);color:#fff;}
+  .ac-nav-item.is-active{background:rgba(48,97,170,.30);color:#fff;}
+  .ac-nav-item.is-active::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--ac-orange);}
+
+  /* --- tabla --- */
+  .ac-table thead th{font-family:var(--font-heading);font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);background:var(--neu);border-bottom:1px solid var(--line);white-space:nowrap;}
+  .ac-table td{border-bottom:1px solid var(--line-soft);color:var(--ink);}
+  .ac-table tbody tr:last-child td{border-bottom:none;}
+  .ac-table tbody tr:hover{background:rgba(255,255,255,.55);}
+}
+
+/* =========================================================
+   Puente con las pantallas que todavía usan clases Tailwind
+   antiguas (bg-white / border-slate-*). Evita tener que editar
+   cada página: adapta esos restos a la superficie neomórfica.
+   ========================================================= */
+main input[type="text"],
+main input[type="email"],
+main input[type="password"],
+main input[type="date"],
+main input[type="number"],
+main select,
+main textarea{
+  border:none !important;
+  background:var(--neu);
+  box-shadow:var(--neu-inset-sm);
+  border-radius:12px;
+  color:var(--ink);
+}
+main input:focus,main select:focus,main textarea:focus{outline:none;box-shadow:var(--neu-inset-sm),var(--focus);}
+main table thead tr{background:transparent !important;}
+main table th,main table td{padding-top:14px !important;padding-bottom:14px !important;}
+main .bg-white{background:var(--neu) !important;}
+main .border-slate-200,main .border-slate-100,main .border-slate-300{border-color:var(--line) !important;}
