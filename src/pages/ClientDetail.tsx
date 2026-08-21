@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Phone, Mail, IdCard, Plus, Download, Loader2, Trash2, ArrowLeft } from "lucide-react";
+import { Phone, Mail, IdCard, Plus, Download, Loader2, Trash2, ArrowLeft, Pencil } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -21,6 +21,7 @@ export default function ClientDetail() {
   const [responsables, setResponsables] = useState<Responsable[]>([]);
   const [tab, setTab] = useState<(typeof TABS)[number]>("General");
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [showPagoReasonModal, setShowPagoReasonModal] = useState(false);
   const [editInvoices, setEditInvoices] = useState<Partial<Invoice>[]>([]);
 
@@ -179,22 +180,35 @@ export default function ClientDetail() {
         <Card className="p-5">
           <ol className="relative border-l-2 border-slate-200 ml-2 space-y-6">
             {activities.map((a) => (
-              <li key={a.id} className="ml-4">
+              <li key={a.id} className="ml-4 group">
                 <span className="absolute -left-[9px] w-4 h-4 rounded-full bg-corporate-blueLight border-2 border-white" />
                 <div className="flex items-start justify-between gap-2">
-                  <div>
+                  <button
+                    onClick={() => setEditingActivity(a)}
+                    className="text-left flex-1"
+                    title="Ver / editar actividad"
+                  >
                     <p className="text-xs text-slate-400">{new Date(a.created_at).toLocaleString("es-EC")} {a.autor_nombre ? `· ${a.autor_nombre}` : ""}</p>
-                    <p className="text-sm font-medium text-slate-800 mt-0.5"><strong>{a.tipo}:</strong> {a.descripcion}</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5 group-hover:text-corporate-blue"><strong>{a.tipo}:</strong> {a.descripcion}</p>
                     {a.monto != null && <p className="text-sm text-status-green font-semibold mt-0.5">{currency(a.monto)}</p>}
                     {a.proxima_accion && <p className="text-xs text-slate-500 mt-1">Próxima acción: {a.proxima_accion}{a.proxima_fecha ? ` (${new Date(a.proxima_fecha).toLocaleDateString("es-EC")})` : ""}</p>}
-                  </div>
-                  <button
-                    onClick={() => handleDeleteActivity(a.id)}
-                    className="text-slate-300 hover:text-status-red shrink-0"
-                    title="Eliminar actividad"
-                  >
-                    <Trash2 size={14} />
                   </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => setEditingActivity(a)}
+                      className="text-slate-300 hover:text-corporate-blue"
+                      title="Editar actividad"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteActivity(a.id)}
+                      className="text-slate-300 hover:text-status-red"
+                      title="Eliminar actividad"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
                 {documents.filter((d) => d.activity_id === a.id).map((d) => (
                   <DocLink key={d.id} doc={d} onDelete={() => handleDeleteDocument(d)} />
@@ -228,6 +242,16 @@ export default function ClientDetail() {
 
       {showActivityModal && (
         <ActivityModal clientId={client.id} onClose={() => setShowActivityModal(false)} onSaved={() => { setShowActivityModal(false); reload(); }} />
+      )}
+
+      {editingActivity && (
+        <ActivityModal
+          clientId={client.id}
+          activity={editingActivity}
+          existingDocuments={documents.filter((d) => d.activity_id === editingActivity.id)}
+          onClose={() => setEditingActivity(null)}
+          onSaved={() => { setEditingActivity(null); reload(); }}
+        />
       )}
 
       {showPagoReasonModal && (

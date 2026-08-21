@@ -1,14 +1,29 @@
 import { useState, FormEvent } from "react";
 import { ModalShell } from "../ui/ModalShell";
-import { createActivity, uploadDocument } from "../../lib/data";
-import { TIPOS_ACTIVIDAD } from "../../types";
+import { createActivity, updateActivity, uploadDocument, getDocumentUrl } from "../../lib/data";
+import { TIPOS_ACTIVIDAD, Activity, DocumentRow } from "../../types";
 
-export function ActivityModal({ clientId, onClose, onSaved }: { clientId: string; onClose: () => void; onSaved: () => void }) {
-  const [tipo, setTipo] = useState<string>(TIPOS_ACTIVIDAD[0]);
-  const [descripcion, setDescripcion] = useState("");
-  const [proximaAccion, setProximaAccion] = useState("");
-  const [proximaFecha, setProximaFecha] = useState("");
-  const [monto, setMonto] = useState("");
+export function ActivityModal({
+  clientId,
+  activity,
+  existingDocuments = [],
+  onClose,
+  onSaved,
+}: {
+  clientId: string;
+  /** Si se pasa, el modal edita esta actividad en vez de crear una nueva. */
+  activity?: Activity;
+  /** Documentos ya adjuntos a esta actividad (para poder verlos/descargarlos al editar). */
+  existingDocuments?: DocumentRow[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!activity;
+  const [tipo, setTipo] = useState<string>(activity?.tipo ?? TIPOS_ACTIVIDAD[0]);
+  const [descripcion, setDescripcion] = useState(activity?.descripcion ?? "");
+  const [proximaAccion, setProximaAccion] = useState(activity?.proxima_accion ?? "");
+  const [proximaFecha, setProximaFecha] = useState(activity?.proxima_fecha ?? "");
+  const [monto, setMonto] = useState(activity?.monto != null ? String(activity.monto) : "");
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,28 +37,45 @@ export function ActivityModal({ clientId, onClose, onSaved }: { clientId: string
     setSaving(true);
     setError(null);
     try {
-      const activity = await createActivity({
-        client_id: clientId,
+      const payload = {
         tipo,
         descripcion: descripcion.trim(),
         proxima_accion: proximaAccion || null,
         proxima_fecha: proximaFecha || null,
         monto: tipo === "Pago recibido" && monto ? Number(monto) : null,
-      });
-      if (file) {
-        await uploadDocument(clientId, file, activity.id);
+      };
+      let activityId = activity?.id;
+      if (isEdit && activity) {
+        await updateActivity(activity.id, payload);
+      } else {
+        const created = await createActivity({ client_id: clientId, ...payload });
+        activityId = created.id;
+      }
+      if (file && activityId) {
+        await uploadDocument(clientId, file, activityId);
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo registrar la actividad.");
+      setError(err instanceof Error ? err.message : "No se pudo guardar la actividad.");
     } finally {
       setSaving(false);
     }
   }
 
+  async function openDocument(doc: DocumentRow) {
+    const url = await getDocumentUrl(doc.storage_path);
+    window.open(url, "_blank");
+  }
+
   return (
-    <ModalShell title="Registrar actividad" onClose={onClose}>
+    <ModalShell title={isEdit ? "Editar actividad" : "Registrar actividad"} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {isEdit && (
+          <p className="text-xs text-slate-400 -mt-1">
+            {new Date(activity.created_at).toLocaleString("es-EC")}
+            {activity.autor_nombre ? ` · ${activity.autor_nombre}` : ""}
+          </p>
+        )}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de actividad</label>
           <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
@@ -76,16 +108,34 @@ export function ActivityModal({ clientId, onClose, onSaved }: { clientId: string
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
-            <input type="date" value={proximaFecha} onChange={(e) => setProximaFecha(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            <input type="date" value={proximaFecha ?? ""} onChange={(e) => setProximaFecha(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>
+
+        {isEdit && existingDocuments.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Documentos ya adjuntos</label>
+            <ul className="space-y-1">
+              {existingDocuments.map((d) => (
+                <li key={d.id}>
+                  <button type="button" onClick={() => openDocument(d)} className="text-xs text-corporate-blueLight hover:underline">
+                    📎 {d.file_name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Adjuntar comprobante de pago u otro documento (opcional)</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            {isEdit ? "Adjuntar otro documento (opcional)" : "Adjuntar comprobante de pago u otro documento (opcional)"}
+          </label>
           <input type="file" accept="image/*,.pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2" />
         </div>
         {error && <p className="text-sm text-status-red">{error}</p>}
         <button type="submit" disabled={saving} className="w-full bg-corporate-blue text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-corporate-blueLight disabled:opacity-60">
-          {saving ? "Guardando..." : "Registrar actividad"}
+          {saving ? "Guardando..." : isEdit ? "Guardar cambios" : "Registrar actividad"}
         </button>
       </form>
     </ModalShell>

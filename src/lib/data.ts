@@ -231,6 +231,27 @@ export async function deleteActivity(id: string) {
   if (error) throw error;
 }
 
+/** Edita una actividad ya registrada (por ejemplo, si se escribió mal la descripción o el
+ * monto). Igual que en createActivity, "monto" solo se incluye si tiene un valor, para no
+ * romper el guardado si la columna aún no existiera en la base de datos. */
+export async function updateActivity(
+  id: string,
+  payload: {
+    tipo: string;
+    descripcion: string;
+    proxima_accion?: string | null;
+    proxima_fecha?: string | null;
+    monto?: number | null;
+  }
+) {
+  const { monto, ...rest } = payload;
+  const updatePayload: Record<string, unknown> = { ...rest };
+  if (monto !== undefined) updatePayload.monto = monto;
+  const { data, error } = await supabase.from("activities").update(updatePayload).eq("id", id).select().single();
+  if (error) throw error;
+  return data as Activity;
+}
+
 export { severidad };
 
 export interface ExcelImportResult {
