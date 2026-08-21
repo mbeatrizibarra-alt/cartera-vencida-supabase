@@ -52,7 +52,13 @@ export function PerformanceDetailModal({
                   <td className="px-3 py-2 font-medium text-slate-800">{c.name}</td>
                   <td className="px-3 py-2">{currency(c.saldo)}</td>
                   <td className="px-3 py-2">{c.facturas}</td>
-                  <td className="px-3 py-2">{c.diasResolucion !== null ? `${c.diasResolucion} días` : "—"}</td>
+                  <td className="px-3 py-2">
+                    {c.diasResolucion === null
+                      ? "Sin gestión previa"
+                      : c.diasResolucion < 0
+                      ? <span className="text-status-orange font-medium">Pagó {Math.abs(c.diasResolucion)}d antes</span>
+                      : `${c.diasResolucion} días`}
+                  </td>
                   <td className="px-3 py-2">{c.fechaPagado ? new Date(c.fechaPagado).toLocaleDateString("es-EC") : "—"}</td>
                 </tr>
               ))}

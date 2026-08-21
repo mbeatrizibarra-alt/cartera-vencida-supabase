@@ -659,7 +659,7 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
     fetchResponsables(),
     supabase
       .from("clients")
-      .select("id, name, responsable_id, estado, pago_por_gestion, created_at, updated_at")
+      .select("id, name, responsable_id, estado, pago_por_gestion, fecha_pago_reportada, created_at, updated_at")
       .eq("activo", true)
       .then((r) => {
         if (r.error) throw r.error;
@@ -669,6 +669,7 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
           responsable_id: string | null;
           estado: string;
           pago_por_gestion: boolean | null;
+          fecha_pago_reportada: string | null;
           created_at: string;
           updated_at: string;
         }[];
@@ -686,9 +687,33 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
     invoiceCountByClient.set(inv.client_id, (invoiceCountByClient.get(inv.client_id) ?? 0) + 1);
   }
 
-  const toDetail = (c: { id: string; name: string; created_at: string; updated_at: string; estado: string }): ResponsableStatsClient => {
-    const diasResolucion =
-      c.estado === "Pagado" ? Math.max(0, Math.round((new Date(c.updated_at).getTime() - new Date(c.created_at).getTime()) / 86400000)) : null;
+  // Fecha de la primera gestión (primera actividad) por cliente — la misma referencia que usa
+  // fetchAlreadyPaidStats, para que "días" signifique siempre lo mismo en toda la app.
+  const { data: activities, error: actErr } = await supabase
+    .from("activities")
+    .select("client_id, created_at")
+    .order("created_at", { ascending: true });
+  if (actErr) throw actErr;
+  const firstActivityByClient = new Map<string, string>();
+  for (const a of activities ?? []) {
+    if (!firstActivityByClient.has(a.client_id)) firstActivityByClient.set(a.client_id, a.created_at);
+  }
+
+  const toDetail = (c: {
+    id: string;
+    name: string;
+    estado: string;
+    fecha_pago_reportada: string | null;
+    updated_at: string;
+  }): ResponsableStatsClient => {
+    const primeraGestion = firstActivityByClient.get(c.id) ?? null;
+    // Si el cliente reportó una fecha real de pago (según su comprobante), se usa esa —
+    // puede dar días negativos (pagó antes de que tomáramos el caso). Si no la tenemos, se
+    // usa como estimado la fecha en que se marcó "Pagado" en el sistema.
+    const fechaReferencia = c.fecha_pago_reportada ?? c.updated_at;
+    const diasResolucion = c.estado === "Pagado" && primeraGestion
+      ? Math.round((new Date(fechaReferencia).getTime() - new Date(primeraGestion).getTime()) / 86400000)
+      : null;
     return {
       id: c.id,
       name: c.name,
@@ -712,11 +737,14 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
     const montoRecuperadoSinGestion = pagadosSinGestion.reduce((s, c) => s + (saldoByClient.get(c.id) ?? 0), 0);
     const facturasRecuperadas = pagados.reduce((s, c) => s + (invoiceCountByClient.get(c.id) ?? 0), 0);
 
-    const dias = pagados.map((c) => {
-      const ms = new Date(c.updated_at).getTime() - new Date(c.created_at).getTime();
-      return Math.max(0, Math.round(ms / 86400000));
-    });
-    const diasPromedioResolucion = dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length) : null;
+    const detalleAsignados = asignados.map(toDetail).sort((a, b) => b.saldo - a.saldo);
+    const detallePorGestion = pagadosPorGestion.map(toDetail).sort((a, b) => b.saldo - a.saldo);
+    const detalleSinGestion = pagadosSinGestion.map(toDetail).sort((a, b) => b.saldo - a.saldo);
+
+    const conDias = [...detallePorGestion, ...detalleSinGestion].filter((d) => d.diasResolucion !== null);
+    const diasPromedioResolucion = conDias.length
+      ? Math.round(conDias.reduce((s, d) => s + (d.diasResolucion ?? 0), 0) / conDias.length)
+      : null;
 
     return {
       id: r.id,
@@ -733,9 +761,9 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
       porcentajeRecuperacion: montoTotalAsignado > 0 ? Math.round((montoRecuperado / montoTotalAsignado) * 1000) / 10 : 0,
       porcentajeRecuperacionPorGestion: montoTotalAsignado > 0 ? Math.round((montoRecuperadoPorGestion / montoTotalAsignado) * 1000) / 10 : 0,
       diasPromedioResolucion,
-      detalleAsignados: asignados.map(toDetail).sort((a, b) => b.saldo - a.saldo),
-      detallePorGestion: pagadosPorGestion.map(toDetail).sort((a, b) => b.saldo - a.saldo),
-      detalleSinGestion: pagadosSinGestion.map(toDetail).sort((a, b) => b.saldo - a.saldo),
+      detalleAsignados,
+      detallePorGestion,
+      detalleSinGestion,
     };
   });
 }
