@@ -23,6 +23,8 @@ export default function ClientDetail() {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [showPagoReasonModal, setShowPagoReasonModal] = useState(false);
+  const [pagoReasonStep, setPagoReasonStep] = useState<"elegir" | "fecha">("elegir");
+  const [fechaPagoReportada, setFechaPagoReportada] = useState("");
   const [editInvoices, setEditInvoices] = useState<Partial<Invoice>[]>([]);
 
   const reload = useCallback(async () => {
@@ -257,39 +259,80 @@ export default function ClientDetail() {
       {showPagoReasonModal && (
         <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h3 className="font-semibold text-slate-800 mb-2">¿Por qué se marca como "Pagado"?</h3>
-            <p className="text-sm text-slate-500 mb-5">
-              Esto ayuda a que las estadísticas de desempeño reflejen solo los pagos logrados por gestión de cobranza.
-            </p>
-            <div className="space-y-3">
-              <button
-                onClick={() => handleConfirmPagado(true)}
-                className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-status-green hover:bg-status-greenBg text-sm"
-              >
-                <p className="font-semibold text-slate-800">Se logró por gestión de cobranza</p>
-                <p className="text-xs text-slate-500 mt-0.5">Llamadas, correos, convenio, etc. realizados por el equipo.</p>
-              </button>
-              <button
-                onClick={() => handleConfirmPagado(false)}
-                className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-sm"
-              >
-                <p className="font-semibold text-slate-800">El cliente ya había pagado antes</p>
-                <p className="text-xs text-slate-500 mt-0.5">No se había registrado el pago; no corresponde a una gestión nuestra.</p>
-              </button>
-            </div>
-            <button onClick={() => setShowPagoReasonModal(false)} className="w-full text-center text-sm text-slate-400 mt-4 hover:underline">
-              Cancelar
-            </button>
+            {pagoReasonStep === "elegir" ? (
+              <>
+                <h3 className="font-semibold text-slate-800 mb-2">¿Por qué se marca como "Pagado"?</h3>
+                <p className="text-sm text-slate-500 mb-5">
+                  Esto ayuda a que las estadísticas de desempeño reflejen solo los pagos logrados por gestión de cobranza.
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => handleConfirmPagado(true)}
+                    className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-status-green hover:bg-status-greenBg text-sm"
+                  >
+                    <p className="font-semibold text-slate-800">Se logró por gestión de cobranza</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Llamadas, correos, convenio, etc. realizados por el equipo.</p>
+                  </button>
+                  <button
+                    onClick={() => setPagoReasonStep("fecha")}
+                    className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-sm"
+                  >
+                    <p className="font-semibold text-slate-800">El cliente ya había pagado antes</p>
+                    <p className="text-xs text-slate-500 mt-0.5">No se había registrado el pago; no corresponde a una gestión nuestra.</p>
+                  </button>
+                </div>
+                <button onClick={() => setShowPagoReasonModal(false)} className="w-full text-center text-sm text-slate-400 mt-4 hover:underline">
+                  Cancelar
+                </button>
+              </>
+            ) : (
+              <>
+                <h3 className="font-semibold text-slate-800 mb-2">¿Cuándo dice el cliente que pagó?</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  Usa la fecha del comprobante que te envió el cliente. Con esto se calcula cuántos días antes (o después)
+                  de que empezáramos a gestionar el caso, el cliente ya había pagado.
+                </p>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha del pago (según el comprobante)</label>
+                <input
+                  type="date"
+                  value={fechaPagoReportada}
+                  onChange={(e) => setFechaPagoReportada(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-4"
+                />
+                <button
+                  onClick={() => handleConfirmPagado(false, fechaPagoReportada || null)}
+                  disabled={!fechaPagoReportada}
+                  className="w-full bg-corporate-blue text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-corporate-blueLight disabled:opacity-50 mb-2"
+                >
+                  Confirmar
+                </button>
+                <button
+                  onClick={() => handleConfirmPagado(false, null)}
+                  className="w-full text-center text-sm text-slate-500 hover:underline mb-2"
+                >
+                  No sé la fecha exacta, omitir
+                </button>
+                <button onClick={() => setPagoReasonStep("elegir")} className="w-full text-center text-sm text-slate-400 hover:underline">
+                  ← Volver
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
     </DashboardLayout>
   );
 
-  async function handleConfirmPagado(porGestion: boolean) {
+  async function handleConfirmPagado(porGestion: boolean, fechaPagoReportada?: string | null) {
     if (!id) return;
-    await updateClient(id, { estado: "Pagado", pago_por_gestion: porGestion });
+    await updateClient(id, {
+      estado: "Pagado",
+      pago_por_gestion: porGestion,
+      ...(fechaPagoReportada !== undefined ? { fecha_pago_reportada: fechaPagoReportada } : {}),
+    });
     setShowPagoReasonModal(false);
+    setPagoReasonStep("elegir");
+    setFechaPagoReportada("");
     reload();
   }
 

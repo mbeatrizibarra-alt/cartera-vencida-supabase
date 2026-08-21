@@ -3,11 +3,22 @@ import { AlreadyPaidClient } from "../../lib/data";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
 
+function DiasBadge({ dias }: { dias: number | null }) {
+  if (dias === null) return <span className="text-slate-400">Sin gestión previa</span>;
+  if (dias < 0) {
+    return <span className="text-status-orange font-semibold">Pagó {Math.abs(dias)} día(s) antes de tomar el caso</span>;
+  }
+  return <span className="font-semibold text-slate-700">{dias} día(s) después de tomar el caso</span>;
+}
+
 export function AlreadyPaidDetailModal({ clients, onClose }: { clients: AlreadyPaidClient[]; onClose: () => void }) {
   return (
     <ModalShell title="Clientes que ya habían pagado antes" onClose={onClose} wide>
       <p className="text-xs text-slate-400 mb-4">
-        Días desde la primera gestión de cobro registrada (primera actividad) hasta que el cliente quedó marcado "Pagado".
+        "Fecha de pago" es la que reporta el cliente (según el comprobante que envía). Cuando no la tenemos, se usa
+        como estimado la fecha en que se marcó "Pagado" en el sistema — se señala con <span className="italic">(estimado)</span>.
+        Un número de días <span className="text-status-orange font-medium">negativo</span> significa que el cliente
+        ya había pagado antes de que empezáramos a gestionar el caso.
       </p>
       <table className="w-full text-sm">
         <thead>
@@ -16,8 +27,8 @@ export function AlreadyPaidDetailModal({ clients, onClose }: { clients: AlreadyP
             <th className="px-3 py-2 text-left">Responsable</th>
             <th className="px-3 py-2 text-left">Saldo</th>
             <th className="px-3 py-2 text-left">1ª gestión</th>
-            <th className="px-3 py-2 text-left">Pagado</th>
-            <th className="px-3 py-2 text-left">Días</th>
+            <th className="px-3 py-2 text-left">Fecha de pago</th>
+            <th className="px-3 py-2 text-left">Resultado</th>
           </tr>
         </thead>
         <tbody>
@@ -27,8 +38,12 @@ export function AlreadyPaidDetailModal({ clients, onClose }: { clients: AlreadyP
               <td className="px-3 py-2">{c.responsableNombre ?? "Sin asignar"}</td>
               <td className="px-3 py-2">{currency(c.saldo)}</td>
               <td className="px-3 py-2">{c.fechaPrimeraGestion ? new Date(c.fechaPrimeraGestion).toLocaleDateString("es-EC") : "—"}</td>
-              <td className="px-3 py-2">{new Date(c.fechaPagado).toLocaleDateString("es-EC")}</td>
-              <td className="px-3 py-2 font-semibold">{c.diasDesdeGestion !== null ? `${c.diasDesdeGestion} días` : "Sin gestión previa"}</td>
+              <td className="px-3 py-2">
+                {c.fechaPagoReportada
+                  ? new Date(c.fechaPagoReportada + "T00:00:00").toLocaleDateString("es-EC")
+                  : `${new Date(c.fechaMarcadoPagado).toLocaleDateString("es-EC")} (estimado)`}
+              </td>
+              <td className="px-3 py-2"><DiasBadge dias={c.diasDesdeGestion} /></td>
             </tr>
           ))}
         </tbody>

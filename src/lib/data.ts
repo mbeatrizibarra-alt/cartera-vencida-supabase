@@ -258,8 +258,10 @@ export interface AlreadyPaidClient {
   responsableNombre: string | null;
   saldo: number;
   fechaPrimeraGestion: string | null;
-  fechaPagado: string;
+  fechaPagoReportada: string | null;
+  fechaMarcadoPagado: string;
   diasDesdeGestion: number | null;
+  esFechaEstimada: boolean;
 }
 
 export interface AlreadyPaidStats {
@@ -279,13 +281,19 @@ export interface AlreadyPaidStats {
 export async function fetchAlreadyPaidStats(): Promise<AlreadyPaidStats> {
   const { data: clients, error: cErr } = await supabase
     .from("clients")
-    .select("id, name, updated_at, responsables(name)")
+    .select("id, name, updated_at, fecha_pago_reportada, responsables(name)")
     .eq("activo", true)
     .eq("estado", "Pagado")
     .eq("pago_por_gestion", false);
   if (cErr) throw cErr;
 
-  const clientList = (clients ?? []) as unknown as { id: string; name: string; updated_at: string; responsables: { name: string } | { name: string }[] | null }[];
+  const clientList = (clients ?? []) as unknown as {
+    id: string;
+    name: string;
+    updated_at: string;
+    fecha_pago_reportada: string | null;
+    responsables: { name: string } | { name: string }[] | null;
+  }[];
   const clientIds = clientList.map((c) => c.id);
   const getResponsableName = (r: { name: string } | { name: string }[] | null) => (Array.isArray(r) ? r[0]?.name : r?.name) ?? null;
 
@@ -307,8 +315,13 @@ export async function fetchAlreadyPaidStats(): Promise<AlreadyPaidStats> {
 
   const detalle: AlreadyPaidClient[] = clientList.map((c) => {
     const fechaPrimeraGestion = firstActivityByClient.get(c.id) ?? null;
+    // Si el cliente nos dio la fecha real del comprobante, se usa esa (puede dar días
+    // negativos: significa que ya había pagado ANTES de que empezáramos a gestionarlo).
+    // Si no la tenemos, se usa como aproximación la fecha en que se marcó "Pagado" en el
+    // sistema, dejando claro que es una estimación, no el dato real reportado por el cliente.
+    const fechaReferencia = c.fecha_pago_reportada ?? c.updated_at;
     const diasDesdeGestion = fechaPrimeraGestion
-      ? Math.max(0, Math.round((new Date(c.updated_at).getTime() - new Date(fechaPrimeraGestion).getTime()) / 86400000))
+      ? Math.round((new Date(fechaReferencia).getTime() - new Date(fechaPrimeraGestion).getTime()) / 86400000)
       : null;
     return {
       id: c.id,
@@ -316,8 +329,10 @@ export async function fetchAlreadyPaidStats(): Promise<AlreadyPaidStats> {
       responsableNombre: getResponsableName(c.responsables),
       saldo: saldoByClient.get(c.id) ?? 0,
       fechaPrimeraGestion,
-      fechaPagado: c.updated_at,
+      fechaPagoReportada: c.fecha_pago_reportada,
+      fechaMarcadoPagado: c.updated_at,
       diasDesdeGestion,
+      esFechaEstimada: !c.fecha_pago_reportada,
     };
   });
 

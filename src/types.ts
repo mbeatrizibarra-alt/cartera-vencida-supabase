@@ -76,6 +76,7 @@ export interface Client {
   responsable_id: string | null;
   activo: boolean;
   pago_por_gestion: boolean | null;
+  fecha_pago_reportada: string | null;
   created_at: string;
   updated_at: string;
 }
