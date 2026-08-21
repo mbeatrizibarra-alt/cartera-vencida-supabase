@@ -6,7 +6,8 @@ import { KpiCard } from "../components/dashboard/KpiCard";
 import { AgingBarChart, SeverityPieChart, TopDebtorsList, MonthlyRecoveryChart, RecoveryBreakdownCard, MonthlyRecoveryPoint } from "../components/dashboard/Charts";
 import { PerformanceDetailModal } from "../components/team/PerformanceDetailModal";
 import { MonthDetailModal } from "../components/dashboard/MonthDetailModal";
-import { fetchClients, ResponsableStatsClient } from "../lib/data";
+import { AlreadyPaidDetailModal } from "../components/dashboard/AlreadyPaidDetailModal";
+import { fetchClients, fetchAlreadyPaidStats, AlreadyPaidStats, ResponsableStatsClient } from "../lib/data";
 import { ClientWithAgg } from "../types";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
@@ -69,9 +70,12 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ title: string; clients: ResponsableStatsClient[] } | null>(null);
   const [monthDetail, setMonthDetail] = useState<{ label: string; clients: ClientWithAgg[] } | null>(null);
+  const [alreadyPaid, setAlreadyPaid] = useState<AlreadyPaidStats | null>(null);
+  const [showAlreadyPaidDetail, setShowAlreadyPaidDetail] = useState(false);
 
   useEffect(() => {
     fetchClients().then(setClients).catch((e) => setError(e.message));
+    fetchAlreadyPaidStats().then(setAlreadyPaid).catch(() => setAlreadyPaid(null));
   }, []);
 
   if (error) {
@@ -126,15 +130,10 @@ export default function Dashboard() {
         <KpiCard label="Sin gestión todavía" value={String(sinGestion)} icon={UserX} tone="slate" onClick={() => goToClients({ estado: "Sin gestión" })} />
         <KpiCard
           label="Ya habían pagado antes"
-          value={String(yaHabianPagado)}
+          value={alreadyPaid ? `${alreadyPaid.cantidad}${alreadyPaid.diasPromedio !== null ? ` · ${alreadyPaid.diasPromedio} días prom.` : ""}` : String(yaHabianPagado)}
           icon={ReceiptText}
           tone="slate"
-          onClick={() =>
-            setDetail({
-              title: "Clientes que ya habían pagado antes",
-              clients: toDetailClients(clients.filter((c) => c.estado === "Pagado" && c.pago_por_gestion === false)),
-            })
-          }
+          onClick={() => setShowAlreadyPaidDetail(true)}
         />
       </div>
 
@@ -170,6 +169,9 @@ export default function Dashboard() {
 
       {detail && <PerformanceDetailModal title={detail.title} clients={detail.clients} onClose={() => setDetail(null)} />}
       {monthDetail && <MonthDetailModal monthLabel={monthDetail.label} clients={monthDetail.clients} onClose={() => setMonthDetail(null)} />}
+      {showAlreadyPaidDetail && alreadyPaid && (
+        <AlreadyPaidDetailModal clients={alreadyPaid.detalle} onClose={() => setShowAlreadyPaidDetail(false)} />
+      )}
     </DashboardLayout>
   );
 }

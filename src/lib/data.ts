@@ -252,6 +252,86 @@ export async function updateActivity(
   return data as Activity;
 }
 
+export interface AlreadyPaidClient {
+  id: string;
+  name: string;
+  responsableNombre: string | null;
+  saldo: number;
+  fechaPrimeraGestion: string | null;
+  fechaPagado: string;
+  diasDesdeGestion: number | null;
+}
+
+export interface AlreadyPaidStats {
+  cantidad: number;
+  montoTotal: number;
+  diasPromedio: number | null;
+  detalle: AlreadyPaidClient[];
+}
+
+/**
+ * Estadística de clientes que ya habían pagado por su cuenta (pago_por_gestion = false):
+ * cuánto suman esas facturas y, sobre todo, cuántos días pasaron desde que se registró la
+ * PRIMERA gestión de cobro a ese cliente (la primera actividad, sea llamada, correo, etc.)
+ * hasta que quedó marcado "Pagado". Sirve para detectar casos donde el cliente ya llevaba
+ * mucho tiempo con la gestión abierta antes de que se confirmara/registrara el pago.
+ */
+export async function fetchAlreadyPaidStats(): Promise<AlreadyPaidStats> {
+  const { data: clients, error: cErr } = await supabase
+    .from("clients")
+    .select("id, name, updated_at, responsables(name)")
+    .eq("activo", true)
+    .eq("estado", "Pagado")
+    .eq("pago_por_gestion", false);
+  if (cErr) throw cErr;
+
+  const clientList = (clients ?? []) as unknown as { id: string; name: string; updated_at: string; responsables: { name: string } | { name: string }[] | null }[];
+  const clientIds = clientList.map((c) => c.id);
+  const getResponsableName = (r: { name: string } | { name: string }[] | null) => (Array.isArray(r) ? r[0]?.name : r?.name) ?? null;
+
+  const { data: invoices, error: iErr } = await supabase.from("invoices").select("client_id, saldo").in("client_id", clientIds.length ? clientIds : ["00000000-0000-0000-0000-000000000000"]);
+  if (iErr) throw iErr;
+  const saldoByClient = new Map<string, number>();
+  for (const inv of invoices ?? []) saldoByClient.set(inv.client_id, (saldoByClient.get(inv.client_id) ?? 0) + Number(inv.saldo));
+
+  const { data: activities, error: aErr } = await supabase
+    .from("activities")
+    .select("client_id, created_at")
+    .in("client_id", clientIds.length ? clientIds : ["00000000-0000-0000-0000-000000000000"])
+    .order("created_at", { ascending: true });
+  if (aErr) throw aErr;
+  const firstActivityByClient = new Map<string, string>();
+  for (const a of activities ?? []) {
+    if (!firstActivityByClient.has(a.client_id)) firstActivityByClient.set(a.client_id, a.created_at);
+  }
+
+  const detalle: AlreadyPaidClient[] = clientList.map((c) => {
+    const fechaPrimeraGestion = firstActivityByClient.get(c.id) ?? null;
+    const diasDesdeGestion = fechaPrimeraGestion
+      ? Math.max(0, Math.round((new Date(c.updated_at).getTime() - new Date(fechaPrimeraGestion).getTime()) / 86400000))
+      : null;
+    return {
+      id: c.id,
+      name: c.name,
+      responsableNombre: getResponsableName(c.responsables),
+      saldo: saldoByClient.get(c.id) ?? 0,
+      fechaPrimeraGestion,
+      fechaPagado: c.updated_at,
+      diasDesdeGestion,
+    };
+  });
+
+  const conDias = detalle.filter((d) => d.diasDesdeGestion !== null);
+  const diasPromedio = conDias.length ? Math.round(conDias.reduce((s, d) => s + (d.diasDesdeGestion ?? 0), 0) / conDias.length) : null;
+
+  return {
+    cantidad: detalle.length,
+    montoTotal: detalle.reduce((s, d) => s + d.saldo, 0),
+    diasPromedio,
+    detalle: detalle.sort((a, b) => b.saldo - a.saldo),
+  };
+}
+
 export { severidad };
 
 export interface ExcelImportResult {
