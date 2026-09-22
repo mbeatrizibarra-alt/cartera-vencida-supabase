@@ -25,6 +25,15 @@ export function severidad(dias: number): "Alto riesgo"|"Crítico"|"Muy crítico"
   if (dias > 180) return "Crítico";
   return "Alto riesgo";
 }
+
+/** Días de mora calculados en vivo a partir de la fecha de la factura — así el número sube
+ * solo, día a día, en vez de quedarse congelado en el valor que traía el Excel al importarse. */
+export function calcularDiasMora(fecha: string | null): number {
+  if (!fecha) return 0;
+  const ms = Date.now() - new Date(fecha).getTime();
+  return Math.max(0, Math.floor(ms / 86400000));
+}
+
 export const SEVERIDAD_TONE: Record<string, "orange"|"red"|"maroon"> = {
   "Alto riesgo":"orange","Crítico":"red","Muy crítico":"maroon"
 };

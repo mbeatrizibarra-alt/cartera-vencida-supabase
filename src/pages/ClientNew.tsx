@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { Card } from "../components/ui/Card";
 import { createClient, upsertInvoices, fetchResponsables } from "../lib/data";
-import { Responsable } from "../types";
+import { Responsable, calcularDiasMora } from "../types";
 
 export default function ClientNew() {
   const navigate = useNavigate();
@@ -12,7 +12,11 @@ export default function ClientNew() {
   const [taxId, setTaxId] = useState("");
   const [respId, setRespId] = useState("");
   const [saldo, setSaldo] = useState("0");
-  const [dias, setDias] = useState("121");
+  const [fecha, setFecha] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 121);
+    return d.toISOString().slice(0, 10);
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,7 +31,7 @@ export default function ClientNew() {
     try {
       const client = await createClient({ name, tax_id: taxId, responsable_id: respId || null });
       await upsertInvoices(client.id, [
-        { numero: "", fecha: new Date().toISOString().slice(0, 10), saldo: Number(saldo) || 0, dias_mora: Number(dias) || 0, condicion: "" },
+        { numero: "", fecha, saldo: Number(saldo) || 0, dias_mora: calcularDiasMora(fecha), condicion: "" },
       ]);
       navigate(`/clients/${client.id}`);
     } catch (err) {
@@ -55,8 +59,9 @@ export default function ClientNew() {
               <input type="number" step="0.01" value={saldo} onChange={(e) => setSaldo(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Días de mora</label>
-              <input type="number" value={dias} onChange={(e) => setDias(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de la factura</label>
+              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <p className="text-xs text-slate-400 mt-1">Los días de mora se calculan solos a partir de esta fecha ({calcularDiasMora(fecha)} días hoy).</p>
             </div>
           </div>
           <div>

@@ -6,7 +6,7 @@ import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { ActivityModal } from "../components/activities/ActivityModal";
 import { fetchClientDetail, updateClient, upsertInvoices, fetchResponsables, getDocumentUrl, deleteDocument, deleteActivity } from "../lib/data";
-import { Client, Invoice, Activity, DocumentRow, Responsable, ESTADOS, ESTADO_TONE, SEVERIDAD_TONE, severidad } from "../types";
+import { Client, Invoice, Activity, DocumentRow, Responsable, ESTADOS, ESTADO_TONE, SEVERIDAD_TONE, severidad, calcularDiasMora } from "../types";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
 const TABS = ["General", "Facturas", "Actividades", "Documentos"] as const;
@@ -50,12 +50,15 @@ export default function ClientDetail() {
 
   async function saveInvoices() {
     if (!id) return;
-    await upsertInvoices(id, editInvoices);
+    // Se guarda un valor de dias_mora "de referencia" al momento del guardado, pero la app
+    // nunca vuelve a leerlo para mostrarlo — siempre se recalcula en vivo desde la fecha.
+    const payload = editInvoices.map((inv) => ({ ...inv, dias_mora: calcularDiasMora(inv.fecha ?? null) }));
+    await upsertInvoices(id, payload);
     reload();
   }
 
   const saldoTotal = editInvoices.reduce((s, i) => s + Number(i.saldo || 0), 0);
-  const diasMax = editInvoices.length ? Math.max(...editInvoices.map((i) => Number(i.dias_mora || 0))) : 0;
+  const diasMax = editInvoices.length ? Math.max(...editInvoices.map((i) => calcularDiasMora(i.fecha ?? null))) : 0;
 
   if (!client) {
     return (
@@ -163,7 +166,9 @@ export default function ClientDetail() {
                   <td className="px-3 py-2"><input value={inv.numero ?? ""} onChange={(e) => setEditInvoices((prev) => prev.map((p, i) => i === idx ? { ...p, numero: e.target.value } : p))} className="w-full border border-slate-200 rounded px-2 py-1 text-sm" /></td>
                   <td className="px-3 py-2"><input type="date" value={inv.fecha ?? ""} onChange={(e) => setEditInvoices((prev) => prev.map((p, i) => i === idx ? { ...p, fecha: e.target.value } : p))} className="w-full border border-slate-200 rounded px-2 py-1 text-sm" /></td>
                   <td className="px-3 py-2"><input type="number" step="0.01" value={inv.saldo ?? 0} onChange={(e) => setEditInvoices((prev) => prev.map((p, i) => i === idx ? { ...p, saldo: Number(e.target.value) } : p))} className="w-full border border-slate-200 rounded px-2 py-1 text-sm" /></td>
-                  <td className="px-3 py-2"><input type="number" value={inv.dias_mora ?? 0} onChange={(e) => setEditInvoices((prev) => prev.map((p, i) => i === idx ? { ...p, dias_mora: Number(e.target.value) } : p))} className="w-full border border-slate-200 rounded px-2 py-1 text-sm" /></td>
+                  <td className="px-3 py-2 text-slate-500">
+                    {inv.fecha ? `${calcularDiasMora(inv.fecha)} (auto)` : "—"}
+                  </td>
                   <td className="px-3 py-2">
                     <button onClick={() => setEditInvoices((prev) => prev.filter((_, i) => i !== idx))} className="text-status-red text-xs">Quitar</button>
                   </td>
@@ -172,7 +177,7 @@ export default function ClientDetail() {
             </tbody>
           </table>
           <div className="flex gap-2">
-            <button onClick={() => setEditInvoices((prev) => [...prev, { numero: "", fecha: new Date().toISOString().slice(0, 10), saldo: 0, dias_mora: diasMax || 120, condicion: "" }])} className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">+ Agregar factura</button>
+            <button onClick={() => setEditInvoices((prev) => [...prev, { numero: "", fecha: new Date().toISOString().slice(0, 10), saldo: 0, dias_mora: 0, condicion: "" }])} className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50">+ Agregar factura</button>
             <button onClick={saveInvoices} className="text-sm px-3 py-1.5 rounded-lg bg-corporate-blue text-white hover:bg-corporate-blueLight">Guardar facturas</button>
           </div>
         </Card>

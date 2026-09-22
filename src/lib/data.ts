@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient";
-import { Client, ClientWithAgg, Invoice, Activity, DocumentRow, Responsable, severidad } from "../types";
+import { Client, ClientWithAgg, Invoice, Activity, DocumentRow, Responsable, severidad, calcularDiasMora } from "../types";
 
 export async function fetchResponsables(): Promise<Responsable[]> {
   const { data, error } = await supabase.from("responsables").select("*").eq("activo", true).order("name");
@@ -30,7 +30,11 @@ export async function fetchClients(): Promise<ClientWithAgg[]> {
   }
 
   return (clients as (Client & { responsables: { name: string } | null })[]).map((c) => {
-    const clientInvoices = (invoices as Invoice[]).filter((i) => i.client_id === c.id);
+    const clientInvoicesRaw = (invoices as Invoice[]).filter((i) => i.client_id === c.id);
+    // Los días de mora se calculan en vivo a partir de la fecha de la factura, no del valor
+    // guardado en la base (que se congela en el momento de la carga/importación). Así el
+    // número sube solo día a día sin que nadie tenga que actualizarlo manualmente.
+    const clientInvoices = clientInvoicesRaw.map((i) => ({ ...i, dias_mora: calcularDiasMora(i.fecha) }));
     const saldo_total = Math.round(clientInvoices.reduce((s, i) => s + Number(i.saldo), 0) * 100) / 100;
     const dias_max = clientInvoices.length ? Math.max(...clientInvoices.map((i) => i.dias_mora)) : 0;
     const fechas = clientInvoices.map((i) => i.fecha).filter(Boolean).sort() as string[];
@@ -94,7 +98,7 @@ export async function fetchClientDetail(id: string) {
 
   return {
     client: client as Client & { responsables: { name: string } | null },
-    invoices: invoices as Invoice[],
+    invoices: (invoices as Invoice[]).map((i) => ({ ...i, dias_mora: calcularDiasMora(i.fecha) })),
     activities: (activities as Activity[]).map((a) => ({
       ...a,
       autor_nombre: a.user_id ? profilesById.get(a.user_id) : undefined,
