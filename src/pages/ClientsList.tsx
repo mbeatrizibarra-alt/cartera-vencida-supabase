@@ -55,7 +55,10 @@ export default function ClientsList() {
     let filtered = clients.filter((c) => {
       const normalize = (s: string) => s.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       const matchesSearch = normalize(c.name).includes(normalize(search)) || c.tax_id.includes(search.trim());
-      const matchesEstado = estadoFilter.length === 0 || estadoFilter.includes(c.estado);
+      // Por defecto (sin filtro de estado elegido) las cuentas "Pagado" se ocultan, para que
+      // los gestores no pierdan tiempo viendo cuentas ya cerradas mientras trabajan la cartera
+      // activa. Si alguien quiere verlas, puede elegir "Pagado" explícitamente en el filtro.
+      const matchesEstado = estadoFilter.length === 0 ? c.estado !== "Pagado" : estadoFilter.includes(c.estado);
       const matchesSev = sevFilter.length === 0 || sevFilter.includes(severidad(c.dias_max));
       const matchesResp =
         respFilter.length === 0 ||
@@ -102,6 +105,8 @@ export default function ClientsList() {
   }
 
   const nuevosCount = clients?.filter((c) => !c.responsable_id).length ?? 0;
+  const pagadosCount = clients?.filter((c) => c.estado === "Pagado").length ?? 0;
+  const viendoPagados = estadoFilter.length === 1 && estadoFilter[0] === "Pagado";
 
   return (
     <DashboardLayout title="Cartera de clientes">
@@ -123,6 +128,20 @@ export default function ClientsList() {
           <span className="text-xs text-status-orange font-medium">Ver y asignar →</span>
         </button>
       )}
+
+      <div className="flex items-center justify-between mb-4 text-xs text-slate-400">
+        <span>Las cuentas "Pagado" se ocultan aquí para no distraer la gestión activa.</span>
+        {pagadosCount > 0 && (
+          <button
+            onClick={() => (viendoPagados ? setEstadoFilter([]) : setEstadoFilter(["Pagado"]))}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-medium ${
+              viendoPagados ? "bg-status-green text-white" : "bg-status-greenBg text-status-green hover:opacity-80"
+            }`}
+          >
+            {viendoPagados ? "← Volver a cartera activa" : `Ver cuentas pagadas (${pagadosCount})`}
+          </button>
+        )}
+      </div>
 
       <Card className="p-4 mb-4">
         <div className="flex flex-wrap items-center gap-3">
