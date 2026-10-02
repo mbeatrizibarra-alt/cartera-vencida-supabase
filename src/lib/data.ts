@@ -340,7 +340,9 @@ export async function fetchAlreadyPaidStats(): Promise<AlreadyPaidStats> {
     };
   });
 
-  const conDias = detalle.filter((d) => d.diasDesdeGestion !== null);
+  // Mismo resguardo que en fetchResponsableStats: una fecha mal escrita (ej. año "0026") no
+  // debe poder arrastrar el promedio a un número sin sentido.
+  const conDias = detalle.filter((d) => d.diasDesdeGestion !== null && Math.abs(d.diasDesdeGestion) <= 3650);
   const diasPromedio = conDias.length ? Math.round(conDias.reduce((s, d) => s + (d.diasDesdeGestion ?? 0), 0) / conDias.length) : null;
 
   return {
@@ -745,7 +747,11 @@ export async function fetchResponsableStats(): Promise<ResponsableStats[]> {
     const detallePorGestion = pagadosPorGestion.map(toDetail).sort((a, b) => b.saldo - a.saldo);
     const detalleSinGestion = pagadosSinGestion.map(toDetail).sort((a, b) => b.saldo - a.saldo);
 
-    const conDias = [...detallePorGestion, ...detalleSinGestion].filter((d) => d.diasResolucion !== null);
+    // Se excluyen valores fuera de ±10 años: casi siempre son un error de tipeo en la fecha
+    // (ej. escribir "0026" en vez de "2026"), no un caso real — así no arruinan el promedio.
+    const conDias = [...detallePorGestion, ...detalleSinGestion].filter(
+      (d) => d.diasResolucion !== null && Math.abs(d.diasResolucion) <= 3650
+    );
     const diasPromedioResolucion = conDias.length
       ? Math.round(conDias.reduce((s, d) => s + (d.diasResolucion ?? 0), 0) / conDias.length)
       : null;

@@ -25,6 +25,7 @@ export default function ClientDetail() {
   const [showPagoReasonModal, setShowPagoReasonModal] = useState(false);
   const [pagoReasonStep, setPagoReasonStep] = useState<"elegir" | "fecha">("elegir");
   const [fechaPagoReportada, setFechaPagoReportada] = useState("");
+  const [fechaPagoReportadaError, setFechaPagoReportadaError] = useState<string | null>(null);
   const [editInvoices, setEditInvoices] = useState<Partial<Invoice>[]>([]);
 
   const reload = useCallback(async () => {
@@ -301,11 +302,24 @@ export default function ClientDetail() {
                 <input
                   type="date"
                   value={fechaPagoReportada}
-                  onChange={(e) => setFechaPagoReportada(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-4"
+                  min="2020-01-01"
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => { setFechaPagoReportada(e.target.value); setFechaPagoReportadaError(null); }}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-1"
                 />
+                {fechaPagoReportadaError && <p className="text-xs text-status-red mb-3">{fechaPagoReportadaError}</p>}
+                {!fechaPagoReportadaError && <div className="mb-4" />}
                 <button
-                  onClick={() => handleConfirmPagado(false, fechaPagoReportada || null)}
+                  onClick={() => {
+                    if (fechaPagoReportada) {
+                      const anio = Number(fechaPagoReportada.slice(0, 4));
+                      if (anio < 2020 || anio > new Date().getFullYear()) {
+                        setFechaPagoReportadaError(`El año "${anio}" no parece correcto — revisa que la fecha esté bien escrita (ej: 2026-02-18).`);
+                        return;
+                      }
+                    }
+                    handleConfirmPagado(false, fechaPagoReportada || null);
+                  }}
                   disabled={!fechaPagoReportada}
                   className="w-full bg-corporate-blue text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-corporate-blueLight disabled:opacity-50 mb-2"
                 >
@@ -338,6 +352,7 @@ export default function ClientDetail() {
     setShowPagoReasonModal(false);
     setPagoReasonStep("elegir");
     setFechaPagoReportada("");
+    setFechaPagoReportadaError(null);
     reload();
   }
 
