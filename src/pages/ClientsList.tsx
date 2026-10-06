@@ -14,6 +14,9 @@ type SortKey = "fecha_min" | "saldo_total" | "dias_max" | "name";
 
 const parseList = (v: string | null) => (v ? v.split(",").filter(Boolean) : []);
 
+// Estados que salen de la lista de trabajo y se consultan en la sección "pagadas y cerradas".
+const ESTADOS_CERRADOS = ["Pagado", "Caso cerrado"];
+
 export default function ClientsList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [clients, setClients] = useState<ClientWithAgg[] | null>(null);
@@ -55,10 +58,12 @@ export default function ClientsList() {
     let filtered = clients.filter((c) => {
       const normalize = (s: string) => s.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       const matchesSearch = normalize(c.name).includes(normalize(search)) || c.tax_id.includes(search.trim());
-      // Por defecto (sin filtro de estado elegido) las cuentas "Pagado" se ocultan, para que
-      // los gestores no pierdan tiempo viendo cuentas ya cerradas mientras trabajan la cartera
-      // activa. Si alguien quiere verlas, puede elegir "Pagado" explícitamente en el filtro.
-      const matchesEstado = estadoFilter.length === 0 ? c.estado !== "Pagado" : estadoFilter.includes(c.estado);
+      // Por defecto (sin filtro de estado elegido) las cuentas "Pagado" y "Caso cerrado" se
+      // ocultan, para que los gestores no pierdan tiempo viendo cuentas ya cerradas mientras
+      // trabajan la cartera activa. Se pueden ver con el botón de la sección aparte o
+      // eligiendo esos estados explícitamente en el filtro.
+      const matchesEstado =
+        estadoFilter.length === 0 ? !ESTADOS_CERRADOS.includes(c.estado) : estadoFilter.includes(c.estado);
       const matchesSev = sevFilter.length === 0 || sevFilter.includes(severidad(c.dias_max));
       const matchesResp =
         respFilter.length === 0 ||
@@ -104,9 +109,10 @@ export default function ClientsList() {
     );
   }
 
-  const nuevosCount = clients?.filter((c) => !c.responsable_id).length ?? 0;
-  const pagadosCount = clients?.filter((c) => c.estado === "Pagado").length ?? 0;
-  const viendoPagados = estadoFilter.length === 1 && estadoFilter[0] === "Pagado";
+  // Las cuentas ya cerradas no cuentan como "nuevas sin responsable": no requieren asignación.
+  const nuevosCount = clients?.filter((c) => !c.responsable_id && !ESTADOS_CERRADOS.includes(c.estado)).length ?? 0;
+  const pagadosCount = clients?.filter((c) => ESTADOS_CERRADOS.includes(c.estado)).length ?? 0;
+  const viendoPagados = estadoFilter.length > 0 && estadoFilter.every((e) => ESTADOS_CERRADOS.includes(e));
 
   return (
     <DashboardLayout title="Cartera de clientes">
@@ -130,15 +136,15 @@ export default function ClientsList() {
       )}
 
       <div className="flex items-center justify-between mb-4 text-xs text-slate-400">
-        <span>Las cuentas "Pagado" se ocultan aquí para no distraer la gestión activa.</span>
+        <span>Las cuentas "Pagado" y "Caso cerrado" se ocultan aquí para no distraer la gestión activa.</span>
         {pagadosCount > 0 && (
           <button
-            onClick={() => (viendoPagados ? setEstadoFilter([]) : setEstadoFilter(["Pagado"]))}
+            onClick={() => (viendoPagados ? setEstadoFilter([]) : setEstadoFilter([...ESTADOS_CERRADOS]))}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-medium ${
               viendoPagados ? "bg-status-green text-white" : "bg-status-greenBg text-status-green hover:opacity-80"
             }`}
           >
-            {viendoPagados ? "← Volver a cartera activa" : `Ver cuentas pagadas (${pagadosCount})`}
+            {viendoPagados ? "← Volver a cartera activa" : `Ver cuentas pagadas y cerradas (${pagadosCount})`}
           </button>
         )}
       </div>
