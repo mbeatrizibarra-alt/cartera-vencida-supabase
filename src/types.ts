@@ -2,7 +2,7 @@ export const ESTADOS = [
   "Sin gestión","Primera llamada","Segunda llamada","Correo enviado","WhatsApp enviado",
   "Carta de cobro enviada","Cliente respondió","Cliente solicita convenio","Convenio enviado",
   "Convenio firmado","Promesa de pago","Pago parcial","Pagado","En conciliación",
-  "En revisión administrativa","Proceso legal","Cobro judicial","Incobrable","Caso cerrado"
+  "En revisión administrativa","Proceso legal","Cobro judicial","En liquidación / disolución","Incobrable","Caso cerrado"
 ] as const;
 export type Estado = (typeof ESTADOS)[number];
 
@@ -12,7 +12,7 @@ export const ESTADO_TONE: Record<string, "green"|"orange"|"red"|"gray"|"blue"> =
   "Sin gestión":"gray","Primera llamada":"orange","Segunda llamada":"orange","Correo enviado":"orange",
   "WhatsApp enviado":"orange","Carta de cobro enviada":"orange","En conciliación":"blue",
   "En revisión administrativa":"blue","Proceso legal":"red","Cobro judicial":"red",
-  "Incobrable":"red","Caso cerrado":"gray"
+  "En liquidación / disolución":"red","Incobrable":"red","Caso cerrado":"gray"
 };
 
 export const TIPOS_ACTIVIDAD = [
