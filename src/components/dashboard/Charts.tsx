@@ -76,9 +76,18 @@ export function SeverityPieChart({ clients, onSliceClick }: { clients: ClientWit
   );
 }
 
-export interface MonthlyRecoveryPoint { label: string; total: number; clientes: number; year: number; month: number; }
+export interface MonthlyRecoveryPoint { label: string; total: number; pagos: number; year: number; month: number; }
 
-export function MonthlyRecoveryChart({ data, onMonthClick }: { data: MonthlyRecoveryPoint[]; onMonthClick?: (point: MonthlyRecoveryPoint) => void }) {
+export function MonthlyRecoveryChart({
+  data,
+  onMonthClick,
+  sinPago,
+}: {
+  data: MonthlyRecoveryPoint[];
+  onMonthClick?: (point: MonthlyRecoveryPoint) => void;
+  /** Clientes cerrados por gestión que no tienen ningún pago registrado (no aparecen en el gráfico). */
+  sinPago?: { cantidad: number; saldo: number; onClick: () => void };
+}) {
   const renderDot = (props: { cx?: number; cy?: number; payload?: MonthlyRecoveryPoint; index?: number }) => {
     const { cx, cy, payload, index } = props;
     if (cx === undefined || cy === undefined || !payload) return <g key={index} />;
@@ -90,8 +99,8 @@ export function MonthlyRecoveryChart({ data, onMonthClick }: { data: MonthlyReco
   return (
     <Card className="p-5">
       <ChartHead
-        title="Recuperación mensual · últimos 12 meses"
-        hint={`Monto de facturas de clientes marcados "Pagado", agrupado por el mes en que se cerraron.${onMonthClick ? " Haz clic en un punto para ver el desglose por responsable." : ""}`}
+        title="Pagos recibidos por mes · últimos 12 meses"
+        hint={`Suma de los pagos registrados (actividad "Pago recibido" con monto), en el mes en que se registraron. Se actualiza solo.${onMonthClick ? " Haz clic en un punto para ver el desglose por responsable." : ""}`}
       />
       <ResponsiveContainer width="100%" height={230}>
         <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
@@ -99,14 +108,24 @@ export function MonthlyRecoveryChart({ data, onMonthClick }: { data: MonthlyReco
           <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} />
           <YAxis tick={AXIS} axisLine={false} tickLine={false} />
           <Tooltip
-            formatter={(v: number, _name, item) => [`${currency(v)} · ${item.payload.clientes} cliente(s)`, "Recuperado"]}
+            formatter={(v: number, _name, item) => [`${currency(v)} · ${item.payload.pagos} pago(s)`, "Recibido"]}
             labelFormatter={(label) => `Mes: ${label}`}
             contentStyle={TOOLTIP_STYLE}
           />
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <Line type="monotone" dataKey="total" name="Recuperado" stroke="#1F9D57" strokeWidth={2.5} dot={renderDot as any} activeDot={{ r: 7, stroke: "#E8ECF4", strokeWidth: 2 }} />
+          <Line type="monotone" dataKey="total" name="Recibido" stroke="#1F9D57" strokeWidth={2.5} dot={renderDot as any} activeDot={{ r: 7, stroke: "#E8ECF4", strokeWidth: 2 }} />
         </LineChart>
       </ResponsiveContainer>
+      {sinPago && sinPago.cantidad > 0 && (
+        <button
+          onClick={sinPago.onClick}
+          className="mt-3 text-left"
+          style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: "var(--ink-soft)", cursor: "pointer" }}
+        >
+          <strong style={{ color: "var(--ac-orange)" }}>{sinPago.cantidad} cliente(s)</strong> marcados "Pagado" por gestión no tienen ningún pago registrado
+          ({currency(sinPago.saldo)} de saldo) y por eso no suman en este gráfico. <u>Ver cuáles</u>
+        </button>
+      )}
     </Card>
   );
 }
@@ -122,7 +141,7 @@ export function RecoveryBreakdownCard({ clients, onSegmentClick }: { clients: Cl
 
   return (
     <Card className="p-5">
-      <ChartHead title="Cartera recuperada — por motivo" hint='De todo lo marcado "Pagado", qué parte fue por gestión activa y qué parte el cliente ya había pagado antes.' />
+      <ChartHead title="Cartera cerrada (Pagado) — por motivo" hint='Saldo total de las facturas de los clientes marcados "Pagado", separado por gestión activa y cliente que ya había pagado. No es lo mismo que los pagos recibidos del gráfico mensual.' />
       <p className="ac-display ac-num m-0 mb-4" style={{ fontSize: 30 }}>{currency(total)}</p>
 
       <div className="flex overflow-hidden mb-5" style={{ height: 10, borderRadius: 999, boxShadow: "var(--neu-inset-sm)" }}>

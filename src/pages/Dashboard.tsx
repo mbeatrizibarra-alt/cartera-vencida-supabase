@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Wallet, Users, TrendingUp, HandCoins, FileSignature, Gavel, UserX, Loader2, ReceiptText } from "lucide-react";
 import { DashboardLayout } from "../components/layout/DashboardLayout";
 import { KpiCard } from "../components/dashboard/KpiCard";
 import { AgingBarChart, SeverityPieChart, TopDebtorsList, MonthlyRecoveryChart, RecoveryBreakdownCard, MonthlyRecoveryPoint } from "../components/dashboard/Charts";
 import { PerformanceDetailModal } from "../components/team/PerformanceDetailModal";
-import { MonthDetailModal } from "../components/dashboard/MonthDetailModal";
+import { MonthDetailModal, MonthPaymentRow } from "../components/dashboard/MonthDetailModal";
 import { AlreadyPaidDetailModal } from "../components/dashboard/AlreadyPaidDetailModal";
-import { fetchClients, fetchAlreadyPaidStats, AlreadyPaidStats, ResponsableStatsClient } from "../lib/data";
+import { fetchClients, fetchAlreadyPaidStats, fetchPayments, AlreadyPaidStats, PaymentRecord, ResponsableStatsClient } from "../lib/data";
+import { useAutoRefresh } from "../lib/useAutoRefresh";
 import { ClientWithAgg } from "../types";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
@@ -26,12 +27,11 @@ function toDetailClients(clients: ClientWithAgg[]): ResponsableStatsClient[] {
 }
 
 /**
- * Recuperación mensual calculada a partir de la MISMA fuente que "Cartera recuperada — por
- * motivo" (saldo real de facturas de clientes marcados "Pagado", por el mes de updated_at) —
- * antes este gráfico usaba un campo manual ("monto" en actividades) que casi nadie llenaba,
- * lo que hacía que los dos totales no coincidieran nunca. Ahora siempre van a sumar lo mismo.
+ * Pagos recibidos por mes: suma de los pagos que el equipo registra (actividad "Pago recibido"
+ * con monto), en el mes en que se registraron. Es el dato que sirve para facturar sobre lo
+ * recaudado, porque trae el monto realmente recibido y no el saldo completo de la factura.
  */
-function buildMonthlyRecovery(clients: ClientWithAgg[]): { points: MonthlyRecoveryPoint[]; clientsByMonth: Map<string, ClientWithAgg[]> } {
+function buildMonthlyPayments(payments: PaymentRecord[]): { points: MonthlyRecoveryPoint[]; paymentsByMonth: Map<string, PaymentRecord[]> } {
   const months: MonthlyRecoveryPoint[] = [];
   const cursor = new Date();
   cursor.setDate(1);
@@ -41,27 +41,27 @@ function buildMonthlyRecovery(clients: ClientWithAgg[]): { points: MonthlyRecove
     months.push({
       label: cursor.toLocaleDateString("es-EC", { month: "short", year: "2-digit" }),
       total: 0,
-      clientes: 0,
+      pagos: 0,
       year: cursor.getFullYear(),
       month: cursor.getMonth(),
     });
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
-  const clientsByMonth = new Map<string, ClientWithAgg[]>();
-  const pagados = clients.filter((c) => c.estado === "Pagado");
-  for (const c of pagados) {
-    const d = new Date(c.updated_at);
+  const paymentsByMonth = new Map<string, PaymentRecord[]>();
+  for (const p of payments) {
+    const d = new Date(p.created_at);
     const bucket = months.find((m) => m.year === d.getFullYear() && m.month === d.getMonth());
-    if (!bucket) continue; // fuera de los últimos 12 meses
-    bucket.total += c.saldo_total;
-    bucket.clientes += 1;
+    if (!bucket) continue;
+    bucket.total += p.monto;
+    bucket.pagos += 1;
     const key = `${bucket.year}-${bucket.month}`;
-    if (!clientsByMonth.has(key)) clientsByMonth.set(key, []);
-    clientsByMonth.get(key)!.push(c);
+    if (!paymentsByMonth.has(key)) paymentsByMonth.set(key, []);
+    paymentsByMonth.get(key)!.push(p);
   }
+  for (const m of months) m.total = Math.round(m.total * 100) / 100;
 
-  return { points: months, clientsByMonth };
+  return { points: months, paymentsByMonth };
 }
 
 export default function Dashboard() {
@@ -69,14 +69,28 @@ export default function Dashboard() {
   const [clients, setClients] = useState<ClientWithAgg[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ title: string; clients: ResponsableStatsClient[] } | null>(null);
-  const [monthDetail, setMonthDetail] = useState<{ label: string; clients: ClientWithAgg[] } | null>(null);
+  const [monthDetail, setMonthDetail] = useState<{ label: string; payments: MonthPaymentRow[] } | null>(null);
   const [alreadyPaid, setAlreadyPaid] = useState<AlreadyPaidStats | null>(null);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [showAlreadyPaidDetail, setShowAlreadyPaidDetail] = useState(false);
+  const hasData = useRef(false);
 
-  useEffect(() => {
-    fetchClients().then(setClients).catch((e) => setError(e.message));
-    fetchAlreadyPaidStats().then(setAlreadyPaid).catch(() => setAlreadyPaid(null));
+  // Carga inicial + refresco automático (cada minuto y al volver a la pestaña), para que lo
+  // que registre cualquier persona aparezca aquí sin recargar la página.
+  const load = useCallback(async () => {
+    try {
+      const [c, p, a] = await Promise.all([fetchClients(), fetchPayments(), fetchAlreadyPaidStats().catch(() => null)]);
+      setClients(c);
+      setPayments(p);
+      setAlreadyPaid(a);
+      setError(null);
+      hasData.current = true;
+    } catch (e) {
+      // Si ya hay datos en pantalla, un fallo puntual del refresco no debe taparlos con un error.
+      if (!hasData.current) setError(e instanceof Error ? e.message : String(e));
+    }
   }, []);
+  useAutoRefresh(load, 60000);
 
   if (error) {
     return (
@@ -104,7 +118,12 @@ export default function Dashboard() {
   const promesas = clients.filter((c) => c.estado === "Promesa de pago").length;
   const legal = clients.filter((c) => ["Proceso legal", "Cobro judicial"].includes(c.estado)).length;
   const yaHabianPagado = clients.filter((c) => c.estado === "Pagado" && c.pago_por_gestion === false).length;
-  const { points: monthly, clientsByMonth } = buildMonthlyRecovery(clients);
+  const { points: monthly, paymentsByMonth } = buildMonthlyPayments(payments);
+  const clientsById = new Map(clients.map((c) => [c.id, c]));
+  const clientesConPago = new Set(payments.map((p) => p.client_id));
+  // Marcados "Pagado" por gestión que no tienen ningún pago registrado: son los casos que el
+  // equipo debería completar registrando el pago con su monto.
+  const pagadosSinPago = clients.filter((c) => c.estado === "Pagado" && c.pago_por_gestion !== false && !clientesConPago.has(c.id));
 
   const goToClients = (params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
@@ -146,7 +165,22 @@ export default function Dashboard() {
               data={monthly}
               onMonthClick={(point) => {
                 const key = `${point.year}-${point.month}`;
-                setMonthDetail({ label: point.label, clients: clientsByMonth.get(key) ?? [] });
+                const rows: MonthPaymentRow[] = (paymentsByMonth.get(key) ?? []).map((p) => {
+                  const c = clientsById.get(p.client_id);
+                  return {
+                    id: p.id,
+                    cliente: c?.name ?? "Cliente inactivo",
+                    responsable: c?.responsable_nombre ?? "Sin asignar",
+                    monto: p.monto,
+                    fecha: p.created_at,
+                  };
+                });
+                setMonthDetail({ label: point.label, payments: rows });
+              }}
+              sinPago={{
+                cantidad: pagadosSinPago.length,
+                saldo: Math.round(pagadosSinPago.reduce((sum, c) => sum + c.saldo_total, 0) * 100) / 100,
+                onClick: () => setDetail({ title: 'Marcados "Pagado" por gestión sin pago registrado', clients: toDetailClients(pagadosSinPago) }),
               }}
             />
           </div>
@@ -168,7 +202,7 @@ export default function Dashboard() {
       </div>
 
       {detail && <PerformanceDetailModal title={detail.title} clients={detail.clients} onClose={() => setDetail(null)} />}
-      {monthDetail && <MonthDetailModal monthLabel={monthDetail.label} clients={monthDetail.clients} onClose={() => setMonthDetail(null)} />}
+      {monthDetail && <MonthDetailModal monthLabel={monthDetail.label} payments={monthDetail.payments} onClose={() => setMonthDetail(null)} />}
       {showAlreadyPaidDetail && alreadyPaid && (
         <AlreadyPaidDetailModal clients={alreadyPaid.detalle} onClose={() => setShowAlreadyPaidDetail(false)} />
       )}
