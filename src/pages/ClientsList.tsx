@@ -6,16 +6,13 @@ import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { MultiSelectDropdown } from "../components/ui/MultiSelectDropdown";
 import { fetchClients, fetchResponsables, updateClient } from "../lib/data";
-import { ClientWithAgg, Responsable, ESTADOS, ESTADO_TONE, SEVERIDAD_TONE, severidad } from "../types";
+import { ClientWithAgg, Responsable, ESTADOS, ESTADOS_CERRADOS, ESTADO_TONE, SEVERIDAD_TONE, severidad } from "../types";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
 
 type SortKey = "fecha_min" | "saldo_total" | "dias_max" | "name";
 
 const parseList = (v: string | null) => (v ? v.split(",").filter(Boolean) : []);
-
-// Estados que salen de la lista de trabajo y se consultan en la sección "pagadas y cerradas".
-const ESTADOS_CERRADOS = ["Pagado", "Caso cerrado"];
 
 export default function ClientsList() {
   const [searchParams, setSearchParams] = useSearchParams();

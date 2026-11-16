@@ -20,6 +20,9 @@ export const TIPOS_ACTIVIDAD = [
   "Convenio","Pago recibido","Proceso legal","Otro"
 ] as const;
 
+/** Estados que sacan una cuenta de la cartera pendiente de cobro (ya pagada o cerrada). */
+export const ESTADOS_CERRADOS: string[] = ["Pagado", "Caso cerrado"];
+
 export function severidad(dias: number): "Alto riesgo"|"Crítico"|"Muy crítico" {
   if (dias > 365) return "Muy crítico";
   if (dias > 180) return "Crítico";

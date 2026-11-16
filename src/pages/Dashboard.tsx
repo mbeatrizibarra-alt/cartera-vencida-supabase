@@ -9,7 +9,7 @@ import { MonthDetailModal, MonthPaymentRow } from "../components/dashboard/Month
 import { AlreadyPaidDetailModal } from "../components/dashboard/AlreadyPaidDetailModal";
 import { fetchClients, fetchAlreadyPaidStats, fetchPayments, AlreadyPaidStats, PaymentRecord, ResponsableStatsClient } from "../lib/data";
 import { useAutoRefresh } from "../lib/useAutoRefresh";
-import { ClientWithAgg } from "../types";
+import { ClientWithAgg, ESTADOS_CERRADOS } from "../types";
 
 const currency = (v: number) => v.toLocaleString("es-EC", { style: "currency", currency: "USD" });
 
@@ -110,7 +110,9 @@ export default function Dashboard() {
     );
   }
 
-  const totalSaldo = clients.reduce((s, c) => s + c.saldo_total, 0);
+  // Saldo pendiente de cobro: solo cuentas abiertas. Las "Pagado" y "Caso cerrado" ya no se
+  // cobran, aunque sus facturas conserven el saldo con el que se cargaron.
+  const totalSaldo = Math.round(clients.filter((c) => !ESTADOS_CERRADOS.includes(c.estado)).reduce((s, c) => s + c.saldo_total, 0) * 100) / 100;
   const criticos = clients.filter((c) => c.dias_max > 365).length;
   const altoRiesgo = clients.filter((c) => c.dias_max <= 180).length;
   const sinGestion = clients.filter((c) => c.estado === "Sin gestión").length;
