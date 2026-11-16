@@ -110,11 +110,13 @@ export default function Dashboard() {
     );
   }
 
-  // Saldo pendiente de cobro: solo cuentas abiertas. Las "Pagado" y "Caso cerrado" ya no se
-  // cobran, aunque sus facturas conserven el saldo con el que se cargaron.
-  const totalSaldo = Math.round(clients.filter((c) => !ESTADOS_CERRADOS.includes(c.estado)).reduce((s, c) => s + c.saldo_total, 0) * 100) / 100;
-  const criticos = clients.filter((c) => c.dias_max > 365).length;
-  const altoRiesgo = clients.filter((c) => c.dias_max <= 180).length;
+  // Todo lo que mide "lo que falta por cobrar" usa solo cuentas abiertas: las "Pagado" y
+  // "Caso cerrado" ya no se cobran, aunque sus facturas conserven el saldo con el que se
+  // cargaron. Así cada cifra del tablero coincide con la lista de Cartera de clientes.
+  const abiertos = clients.filter((c) => !ESTADOS_CERRADOS.includes(c.estado));
+  const totalSaldo = Math.round(abiertos.reduce((s, c) => s + c.saldo_total, 0) * 100) / 100;
+  const criticos = abiertos.filter((c) => c.dias_max > 365).length;
+  const altoRiesgo = abiertos.filter((c) => c.dias_max <= 180).length;
   const sinGestion = clients.filter((c) => c.estado === "Sin gestión").length;
   const convenios = clients.filter((c) => ["Convenio firmado", "Convenio enviado"].includes(c.estado)).length;
   const promesas = clients.filter((c) => c.estado === "Promesa de pago").length;
@@ -142,7 +144,7 @@ export default function Dashboard() {
         <div style={{ gridColumn: "span 2" }}>
           <KpiCard label="Saldo pendiente total" value={currency(totalSaldo)} icon={Wallet} tone="red" hero onClick={() => goToClients({})} />
         </div>
-        <KpiCard label="Clientes morosos" value={String(clients.length)} icon={Users} tone="blue" onClick={() => goToClients({})} />
+        <KpiCard label="Clientes morosos" value={String(abiertos.length)} icon={Users} tone="blue" onClick={() => goToClients({})} />
         <KpiCard label="Muy crítico (+365d)" value={String(criticos)} icon={TrendingUp} tone="red" onClick={() => goToClients({ severidad: "Muy crítico" })} />
         <KpiCard label="Alto riesgo (120-180d)" value={String(altoRiesgo)} icon={UserX} tone="orange" onClick={() => goToClients({ severidad: "Alto riesgo" })} />
         <KpiCard label="Promesas de pago" value={String(promesas)} icon={HandCoins} tone="orange" onClick={() => goToClients({ estado: "Promesa de pago" })} />
@@ -160,8 +162,8 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <AgingBarChart clients={clients} onBucketClick={(min, max) => goToClients({ diasMin: String(min), diasMax: String(max === Infinity ? 99999 : max) })} />
-          <SeverityPieChart clients={clients} onSliceClick={(sev) => goToClients({ severidad: sev })} />
+          <AgingBarChart clients={abiertos} onBucketClick={(min, max) => goToClients({ diasMin: String(min), diasMax: String(max === Infinity ? 99999 : max) })} />
+          <SeverityPieChart clients={abiertos} onSliceClick={(sev) => goToClients({ severidad: sev })} />
           <div className="md:col-span-2">
             <MonthlyRecoveryChart
               data={monthly}
@@ -199,7 +201,7 @@ export default function Dashboard() {
               })
             }
           />
-          <TopDebtorsList clients={clients} />
+          <TopDebtorsList clients={abiertos} />
         </div>
       </div>
 

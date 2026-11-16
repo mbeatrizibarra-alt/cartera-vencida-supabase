@@ -43,6 +43,12 @@ export default function ClientsList() {
     if (estadoFilter.length) params.estado = estadoFilter.join(",");
     if (sevFilter.length) params.severidad = sevFilter.join(",");
     if (respFilter.length) params.resp = respFilter.join(",");
+    // Filtros que llegan desde el Dashboard (clic en el gráfico de antigüedad): no tienen
+    // control propio aquí, así que se conservan en la URL en vez de borrarse al cargar.
+    for (const k of ["diasMin", "diasMax", "motivo"]) {
+      const v = searchParams.get(k);
+      if (v) params[k] = v;
+    }
     setSearchParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, estadoFilter, sevFilter, respFilter]);
@@ -106,10 +112,33 @@ export default function ClientsList() {
     );
   }
 
+  const diasMinParam = searchParams.get("diasMin") ? Number(searchParams.get("diasMin")) : null;
+  const diasMaxParam = searchParams.get("diasMax") ? Number(searchParams.get("diasMax")) : null;
+  const filtroAntiguedad =
+    diasMinParam !== null || diasMaxParam !== null
+      ? `${diasMinParam ?? 0}${diasMaxParam !== null && diasMaxParam < 99999 ? `–${diasMaxParam}` : "+"} días de mora`
+      : null;
+  const quitarAntiguedad = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("diasMin");
+    next.delete("diasMax");
+    setSearchParams(next, { replace: true });
+  };
+
   // Las cuentas ya cerradas no cuentan como "nuevas sin responsable": no requieren asignación.
   const nuevosCount = clients?.filter((c) => !c.responsable_id && !ESTADOS_CERRADOS.includes(c.estado)).length ?? 0;
   const pagadosCount = clients?.filter((c) => ESTADOS_CERRADOS.includes(c.estado)).length ?? 0;
   const viendoPagados = estadoFilter.length > 0 && estadoFilter.every((e) => ESTADOS_CERRADOS.includes(e));
+  const totalLista = Math.round(rows.reduce((sum, c) => sum + c.saldo_total, 0) * 100) / 100;
+  // Hay filtros "reales" cuando se está acotando más allá de la vista por defecto.
+  const hayFiltros =
+    search.trim() !== "" ||
+    sevFilter.length > 0 ||
+    respFilter.length > 0 ||
+    diasMinParam !== null ||
+    diasMaxParam !== null ||
+    !!searchParams.get("motivo") ||
+    (estadoFilter.length > 0 && !viendoPagados);
 
   return (
     <DashboardLayout title="Cartera de clientes">
@@ -130,6 +159,18 @@ export default function ClientsList() {
           </div>
           <span className="text-xs text-status-orange font-medium">Ver y asignar →</span>
         </button>
+      )}
+
+      {filtroAntiguedad && (
+        <div className="mb-3">
+          <button
+            onClick={quitarAntiguedad}
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+            title="Quitar este filtro"
+          >
+            Antigüedad: {filtroAntiguedad} &nbsp;✕
+          </button>
+        </div>
       )}
 
       <div className="flex items-center justify-between mb-4 text-xs text-slate-400">
@@ -234,6 +275,20 @@ export default function ClientsList() {
               <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400">No se encontraron clientes con los filtros aplicados.</td></tr>
             )}
           </tbody>
+          {rows.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 border-slate-300 bg-slate-50">
+                <td colSpan={4} className="px-4 py-4 text-slate-800 font-bold uppercase tracking-wide text-xs">
+                  {viendoPagados ? "Total (cuentas pagadas y cerradas)" : "Total por cobrar"}
+                  <span className="font-normal normal-case tracking-normal text-slate-400">
+                    {" "}· {rows.length} cliente{rows.length === 1 ? "" : "s"}{hayFiltros ? " · según los filtros aplicados" : ""}
+                  </span>
+                </td>
+                <td className="px-4 py-4 text-slate-900 font-bold text-base">{currency(totalLista)}</td>
+                <td colSpan={5} />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </Card>
       <p className="text-xs text-slate-400 mt-3">{rows.length} de {clients.length} clientes</p>
